@@ -1,18 +1,24 @@
 {
-  "name": "andini-pos",
-  "version": "1.0.0",
-  "main": "index.js",
-  "dependencies": {
-    "expo": "~57.0.10",
-    "expo-status-bar": "~57.0.1",
-    "react": "19.2.3",
-    "react-native": "0.86.2"
-  },
+  "name": "pos-web",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
   },
-  "private": true
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.3",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "next": "^16.3.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "eslint": "^9",
+    "eslint-config-next": "^16.3.5"
+  }
 }
