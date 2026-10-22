@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useResponsivePagination } from '../../../lib/useResponsivePagination';
 
 export default function ProdukPage() {
   const [produk, setProduk] = useState([]);
@@ -21,9 +22,9 @@ export default function ProdukPage() {
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [showArchived, setShowArchived] = useState(false);
 
-  // Pagination
+  // Responsive Pagination (5 di Mobile, 8 di Tablet, 12 di Desktop)
+  const ITEMS_PER_PAGE = useResponsivePagination(5, 8, 12);
   const [currentPage, setCurrentPage] = useState(0);
-  const ITEMS_PER_PAGE = 7;
 
   useEffect(() => {
     setCurrentPage(0);
@@ -340,18 +341,18 @@ export default function ProdukPage() {
                 onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))} 
                 disabled={currentPage === 0}
                 className="btn-secondary"
-                style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+                style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}
               >
                 &larr; SEBELUMNYA
               </button>
-              <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-text-secondary)' }}>
-                HALAMAN {currentPage + 1} DARI {totalPages}
+              <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-text-secondary)', textAlign: 'center' }}>
+                Menampilkan {filteredProducts.length === 0 ? 0 : currentPage * ITEMS_PER_PAGE + 1} - {Math.min((currentPage + 1) * ITEMS_PER_PAGE, filteredProducts.length)} dari {filteredProducts.length} data &bull; Halaman {currentPage + 1} dari {totalPages}
               </span>
               <button 
                 onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))} 
                 disabled={currentPage >= totalPages - 1}
                 className="btn-secondary"
-                style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+                style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}
               >
                 SELANJUTNYA &rarr;
               </button>

@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useResponsivePagination } from '../../../../lib/useResponsivePagination';
 
 function MetricCard({ title, value, subtitle, highlightColor, borderColor = 'var(--color-chocolate)' }) {
   return (
@@ -15,6 +16,10 @@ export default function PengeluaranPage() {
   const [pengeluaran, setPengeluaran] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  // Responsive Pagination (5 di Mobile, 8 di Tablet, 12 di Desktop)
+  const ITEMS_PER_PAGE = useResponsivePagination(5, 8, 12);
+  const [currentPage, setCurrentPage] = useState(0);
+
   // Filters
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
@@ -22,10 +27,6 @@ export default function PengeluaranPage() {
   const [dateRangeType, setDateRangeType] = useState('today'); // 'today' | 'week' | 'month' | 'custom' | 'ALL'
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(0);
-  const ITEMS_PER_PAGE = 5;
 
   // Expense Modal State
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -308,9 +309,10 @@ export default function PengeluaranPage() {
         <div style={{ padding: '2rem', textAlign: 'center', fontWeight: 700 }}>MEMUAT DATA PENGELUARAN...</div>
       ) : (
         <div className="table-responsive">
-          <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+          <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid var(--color-border)', backgroundColor: 'var(--color-bg-dark)' }}>
+                <th style={{ padding: '0.75rem 1rem', fontWeight: 800, fontSize: '0.6875rem', letterSpacing: '1px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>NO. TRANSAKSI</th>
                 <th style={{ padding: '0.75rem 1rem', fontWeight: 800, fontSize: '0.6875rem', letterSpacing: '1px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>WAKTU & TANGGAL</th>
                 <th style={{ padding: '0.75rem 1rem', fontWeight: 800, fontSize: '0.6875rem', letterSpacing: '1px', color: 'var(--color-text-secondary)', minWidth: '180px' }}>KATEGORI & DESKRIPSI</th>
                 <th style={{ padding: '0.75rem 1rem', fontWeight: 800, fontSize: '0.6875rem', letterSpacing: '1px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>PENANGGUNG JAWAB</th>
@@ -326,10 +328,25 @@ export default function PengeluaranPage() {
                 return (
                   <tr key={item.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                     
-                    {/* Waktu & No TRX */}
+                    {/* No. Transaksi */}
+                    <td style={{ padding: '0.85rem 1rem', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                      <span style={{ 
+                        fontFamily: 'monospace', 
+                        fontWeight: 700, 
+                        fontSize: '0.75rem', 
+                        backgroundColor: 'var(--color-bg-dark)', 
+                        padding: '0.25rem 0.5rem', 
+                        borderRadius: '4px', 
+                        border: '1px solid var(--color-border)',
+                        color: 'var(--color-text-primary)'
+                      }}>
+                        {item.no_transaksi || item.id}
+                      </span>
+                    </td>
+
+                    {/* Waktu & Tanggal */}
                     <td style={{ padding: '0.85rem 1rem', fontSize: '0.8125rem', color: 'var(--color-text-secondary)', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                      <div style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{formattedDate}</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '0.15rem' }}>{item.no_transaksi}</div>
+                      <div style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>{formattedDate}</div>
                     </td>
 
                     {/* Category & Description */}
@@ -371,7 +388,7 @@ export default function PengeluaranPage() {
               })}
               {pengeluaran.length === 0 && (
                 <tr>
-                  <td colSpan="5" style={{ padding: '3rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                  <td colSpan="6" style={{ padding: '3rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
                     Tidak ada catatan pengeluaran ditemukan.
                   </td>
                 </tr>
@@ -386,18 +403,18 @@ export default function PengeluaranPage() {
                 onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))} 
                 disabled={currentPage === 0}
                 className="btn-secondary"
-                style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+                style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}
               >
                 &larr; SEBELUMNYA
               </button>
-              <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-text-secondary)' }}>
-                HALAMAN {currentPage + 1} DARI {totalPages}
+              <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-text-secondary)', textAlign: 'center' }}>
+                Menampilkan {pengeluaran.length === 0 ? 0 : currentPage * ITEMS_PER_PAGE + 1} - {Math.min((currentPage + 1) * ITEMS_PER_PAGE, pengeluaran.length)} dari {pengeluaran.length} data &bull; Halaman {currentPage + 1} dari {totalPages}
               </span>
               <button 
                 onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))} 
                 disabled={currentPage >= totalPages - 1}
                 className="btn-secondary"
-                style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+                style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}
               >
                 SELANJUTNYA &rarr;
               </button>

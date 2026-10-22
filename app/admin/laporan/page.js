@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import { useResponsivePagination } from '../../../lib/useResponsivePagination';
 
 function StatCard({ title, value, subtitle, highlightColor, borderColor = 'var(--color-chocolate)' }) {
   return (
@@ -19,8 +20,10 @@ export default function LaporanPage() {
   const [rangeType, setRangeType] = useState('month'); // 'today' | 'week' | 'month' | 'custom'
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+
+  // Responsive Pagination (5 di Mobile, 8 di Tablet, 12 di Desktop)
+  const ITEMS_PER_PAGE = useResponsivePagination(5, 8, 12);
   const [currentPage, setCurrentPage] = useState(0);
-  const ITEMS_PER_PAGE = 5;
 
   // PDF Preview State
   const [pdfPreviewModal, setPdfPreviewModal] = useState(false);
@@ -388,23 +391,23 @@ export default function LaporanPage() {
 
             {/* Pagination Controls */}
             {stats.transactionsList && stats.transactionsList.length > ITEMS_PER_PAGE && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem' }}>
+              <div className="responsive-pagination" style={{ marginTop: '1.5rem' }}>
                 <button 
                   onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))} 
                   disabled={currentPage === 0}
                   className="btn-secondary"
-                  style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+                  style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}
                 >
                   &larr; SEBELUMNYA
                 </button>
-                <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-text-secondary)' }}>
-                  HALAMAN {currentPage + 1} DARI {Math.ceil(stats.transactionsList.length / ITEMS_PER_PAGE)}
+                <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-text-secondary)', textAlign: 'center' }}>
+                  Menampilkan {stats.transactionsList.length === 0 ? 0 : currentPage * ITEMS_PER_PAGE + 1} - {Math.min((currentPage + 1) * ITEMS_PER_PAGE, stats.transactionsList.length)} dari {stats.transactionsList.length} data &bull; Halaman {currentPage + 1} dari {Math.ceil(stats.transactionsList.length / ITEMS_PER_PAGE)}
                 </span>
                 <button 
                   onClick={() => setCurrentPage(prev => Math.min(Math.ceil(stats.transactionsList.length / ITEMS_PER_PAGE) - 1, prev + 1))} 
                   disabled={currentPage >= Math.ceil(stats.transactionsList.length / ITEMS_PER_PAGE) - 1}
                   className="btn-secondary"
-                  style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+                  style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}
                 >
                   SELANJUTNYA &rarr;
                 </button>

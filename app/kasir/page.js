@@ -23,7 +23,7 @@ export default function KasirPage() {
   const [keterangan, setKeterangan] = useState('');
   const [processing, setProcessing] = useState(false);
 
-  const sellersList = [
+  const [sellersList, setSellersList] = useState([
     'Umum / Retail',
     'NAFIS',
     'EKO',
@@ -35,7 +35,49 @@ export default function KasirPage() {
     'PAK TOTOK',
     'TIM ANDINI',
     'Lainnya (Kustom)'
-  ];
+  ]);
+  const [showQuickAddSeller, setShowQuickAddSeller] = useState(false);
+  const [quickSellerName, setQuickSellerName] = useState('');
+  const [savingQuickSeller, setSavingQuickSeller] = useState(false);
+  const [quickSellerError, setQuickSellerError] = useState('');
+
+  const handleQuickAddSeller = async () => {
+    const trimmed = quickSellerName.trim();
+    if (!trimmed) {
+      setQuickSellerError('Nama mitra tidak boleh kosong.');
+      return;
+    }
+
+    try {
+      setSavingQuickSeller(true);
+      setQuickSellerError('');
+      const res = await fetch('/api/sellers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nama: trimmed })
+      });
+      const result = await res.json();
+      if (res.ok) {
+        const newName = result.seller?.nama || trimmed;
+        setSellersList(prev => {
+          const withoutCustom = prev.filter(s => s !== 'Lainnya (Kustom)');
+          if (!withoutCustom.includes(newName)) {
+            withoutCustom.push(newName);
+          }
+          return [...withoutCustom, 'Lainnya (Kustom)'];
+        });
+        setSeller(newName);
+        setShowQuickAddSeller(false);
+        setQuickSellerName('');
+      } else {
+        setQuickSellerError(result.error || 'Gagal menambahkan mitra.');
+      }
+    } catch (err) {
+      setQuickSellerError('Terjadi kesalahan jaringan.');
+    } finally {
+      setSavingQuickSeller(false);
+    }
+  };
 
   useEffect(() => {
     // Check auth
@@ -57,10 +99,16 @@ export default function KasirPage() {
 
     Promise.all([
       fetch('/api/produk').then(r => r.json()),
-      fetch('/api/kategori').then(r => r.json())
-    ]).then(([prodRes, katRes]) => {
+      fetch('/api/kategori').then(r => r.json()),
+      fetch('/api/sellers').then(r => r.json()).catch(() => ({}))
+    ]).then(([prodRes, katRes, sellerRes]) => {
       setProduk(Array.isArray(prodRes) ? prodRes : []);
       setKategori(Array.isArray(katRes) ? katRes : []);
+      if (sellerRes && Array.isArray(sellerRes.sellers)) {
+        const names = sellerRes.sellers.map(s => s.nama);
+        if (!names.includes('Lainnya (Kustom)')) names.push('Lainnya (Kustom)');
+        setSellersList(names);
+      }
       setLoading(false);
     });
   }, [router]);
@@ -604,7 +652,62 @@ export default function KasirPage() {
 
             {/* Seller / Mitra Selection */}
             <div style={{ marginBottom: '1.25rem' }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.5rem', letterSpacing: '1px' }}>SELLER / MITRA / PELANGGAN</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '1px' }}>SELLER / MITRA / PELANGGAN</label>
+                <button
+                  type="button"
+                  onClick={() => { setShowQuickAddSeller(!showQuickAddSeller); setQuickSellerError(''); setQuickSellerName(''); }}
+                  style={{
+                    background: 'none',
+                    border: '1px solid var(--color-chocolate)',
+                    color: 'var(--color-chocolate)',
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: '4px',
+                    fontSize: '0.6875rem',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {showQuickAddSeller ? 'BATAL' : '+ MITRA BARU'}
+                </button>
+              </div>
+
+              {/* Quick Add Inline Form */}
+              {showQuickAddSeller && (
+                <div style={{ marginBottom: '0.75rem', padding: '0.75rem', backgroundColor: 'var(--color-bg-dark)', borderRadius: '6px', border: '1px solid var(--color-chocolate)' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, marginBottom: '0.35rem', color: 'var(--color-chocolate)' }}>
+                    ➕ DAFTARKAN MITRA BARU
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="Nama mitra baru (misal: BU ENI)..."
+                      value={quickSellerName}
+                      onChange={e => setQuickSellerName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleQuickAddSeller(); } }}
+                      disabled={savingQuickSeller}
+                      style={{ padding: '0.45rem 0.65rem', fontSize: '0.8125rem', flex: 1 }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      disabled={savingQuickSeller || !quickSellerName.trim()}
+                      onClick={handleQuickAddSeller}
+                      className="btn-chocolate"
+                      style={{ padding: '0.45rem 0.85rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
+                    >
+                      {savingQuickSeller ? '...' : 'SIMPAN & PILIH'}
+                    </button>
+                  </div>
+                  {quickSellerError && (
+                    <div style={{ color: 'var(--color-error)', fontSize: '0.6875rem', marginTop: '0.35rem', fontWeight: 700 }}>
+                      ⚠️ {quickSellerError}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <select 
                 className="input-field" 
                 value={seller} 

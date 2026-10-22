@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useResponsivePagination } from '../../../lib/useResponsivePagination';
 
 const ROLE_LABELS = {
   admin: { label: 'Admin Utama', badgeColor: '#5a321c', badgeBg: '#f8f3ee', icon: '👑' },
@@ -31,6 +32,10 @@ export default function KaryawanPage() {
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState({ total: 0, aktif: 0, kasir: 0, admin: 0, operasional: 0 });
   const [loading, setLoading] = useState(true);
+
+  // Responsive Pagination (5 di Mobile, 8 di Tablet, 12 di Desktop)
+  const ITEMS_PER_PAGE = useResponsivePagination(5, 8, 12);
+  const [currentPage, setCurrentPage] = useState(0);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -82,6 +87,7 @@ export default function KaryawanPage() {
   };
 
   useEffect(() => {
+    setCurrentPage(0);
     loadData();
   }, [searchQuery, selectedRole, selectedStatus]);
 
@@ -174,6 +180,9 @@ export default function KaryawanPage() {
       }
     });
   };
+
+  const paginatedUsers = users.slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(users.length / ITEMS_PER_PAGE);
 
   return (
     <div className="admin-page-container">
@@ -281,14 +290,14 @@ export default function KaryawanPage() {
                   </td>
                 </tr>
               ) : (
-                users.map((u, idx) => {
+                paginatedUsers.map((u, idx) => {
                   const roleMeta = ROLE_LABELS[u.role] || { label: u.role, badgeColor: '#374151', badgeBg: '#f3f4f6', icon: '👤' };
                   const isPrimaryAdmin = u.id === 'u1' || u.username === 'admin';
 
                   return (
                     <tr key={u.id} style={{ borderBottom: '1px solid var(--color-border)', backgroundColor: !u.is_active ? 'rgba(0,0,0,0.02)' : 'transparent' }}>
                       <td style={{ padding: '0.85rem 1rem', color: 'var(--color-text-secondary)', fontWeight: 700 }}>
-                        {idx + 1}
+                        {(currentPage * ITEMS_PER_PAGE) + idx + 1}
                       </td>
                       
                       {/* Name & Role */}
@@ -400,6 +409,31 @@ export default function KaryawanPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        {users.length > ITEMS_PER_PAGE && (
+          <div className="responsive-pagination" style={{ padding: '0.85rem 1rem', borderTop: '1px solid var(--color-border)' }}>
+            <button 
+              onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))} 
+              disabled={currentPage === 0}
+              className="btn-secondary"
+              style={{ padding: '0.45rem 0.85rem', fontSize: '0.8125rem' }}
+            >
+              &larr; SEBELUMNYA
+            </button>
+            <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-text-secondary)', textAlign: 'center' }}>
+              Menampilkan {users.length === 0 ? 0 : currentPage * ITEMS_PER_PAGE + 1} - {Math.min((currentPage + 1) * ITEMS_PER_PAGE, users.length)} dari {users.length} karyawan &bull; Halaman {currentPage + 1} dari {totalPages}
+            </span>
+            <button 
+              onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))} 
+              disabled={currentPage >= totalPages - 1}
+              className="btn-secondary"
+              style={{ padding: '0.45rem 0.85rem', fontSize: '0.8125rem' }}
+            >
+              SELANJUTNYA &rarr;
+            </button>
+          </div>
+        )}
       </div>
 
       {/* MODAL: Tambah / Edit Karyawan */}

@@ -124,7 +124,15 @@ export default function AdminLayout({ children }) {
         {/* Transaksi Section */}
         <div style={{ marginTop: '2px' }}>
           <div 
-            onClick={() => setTransaksiOpen(!transaksiOpen)}
+            onClick={() => {
+              if (pathname !== '/admin/transaksi/pemasukan') {
+                setTransaksiOpen(true);
+                if (isMobile) setMobileMenuOpen(false);
+                router.push('/admin/transaksi/pemasukan');
+              } else {
+                setTransaksiOpen(!transaksiOpen);
+              }
+            }}
             style={{ 
               display: 'flex', 
               justifyContent: 'space-between',
@@ -142,7 +150,16 @@ export default function AdminLayout({ children }) {
               <span style={{ fontSize: isMobile ? '0.8rem' : '0.9rem' }}>💳</span>
               <span>TRANSAKSI</span>
             </div>
-            <span style={{ fontSize: '0.5625rem' }}>{transaksiOpen ? '▲' : '▼'}</span>
+            <span 
+              onClick={(e) => {
+                e.stopPropagation();
+                setTransaksiOpen(!transaksiOpen);
+              }}
+              style={{ fontSize: '0.5625rem', padding: '4px', cursor: 'pointer' }}
+              title="Buka/Tutup Submenu"
+            >
+              {transaksiOpen ? '▲' : '▼'}
+            </span>
           </div>
 
           {/* Submenu items */}

@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useResponsivePagination } from '../../../lib/useResponsivePagination';
 
 const ROLE_CONFIG = {
   admin: {
@@ -62,6 +63,10 @@ export default function ManajemenAkunPage() {
   const [stats, setStats] = useState({ total: 0, admin: 0, kasir: 0, aktif: 0, nonaktif: 0 });
   const [loading, setLoading] = useState(true);
 
+  // Pagination Responsive
+  const ITEMS_PER_PAGE = useResponsivePagination(5, 8, 12);
+  const [currentPage, setCurrentPage] = useState(0);
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRole, setSelectedRole] = useState('ALL');
@@ -113,6 +118,7 @@ export default function ManajemenAkunPage() {
   };
 
   useEffect(() => {
+    setCurrentPage(0);
     loadData();
   }, [searchQuery, selectedRole, selectedStatus]);
 
@@ -225,6 +231,12 @@ export default function ManajemenAkunPage() {
       }
     });
   };
+
+  const totalPages = Math.ceil(accounts.length / ITEMS_PER_PAGE) || 1;
+  const paginatedAccounts = accounts.slice(
+    currentPage * ITEMS_PER_PAGE,
+    (currentPage + 1) * ITEMS_PER_PAGE
+  );
 
   return (
     <div className="admin-page-container">
@@ -347,7 +359,7 @@ export default function ManajemenAkunPage() {
                   </td>
                 </tr>
               ) : (
-                accounts.map((acc, idx) => {
+                paginatedAccounts.map((acc, idx) => {
                   const roleConfig = ROLE_CONFIG[acc.role] || {
                     label: acc.role.toUpperCase(),
                     badgeColor: '#374151',
@@ -360,7 +372,7 @@ export default function ManajemenAkunPage() {
                   return (
                     <tr key={acc.id} style={{ borderBottom: '1px solid var(--color-border)', backgroundColor: !acc.is_active ? 'rgba(0,0,0,0.02)' : 'transparent' }}>
                       <td style={{ padding: '0.85rem 1rem', color: 'var(--color-text-secondary)', fontWeight: 700 }}>
-                        {idx + 1}
+                        {currentPage * ITEMS_PER_PAGE + idx + 1}
                       </td>
 
                       {/* User & Role */}
@@ -472,6 +484,31 @@ export default function ManajemenAkunPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        {accounts.length > ITEMS_PER_PAGE && (
+          <div className="responsive-pagination" style={{ padding: '0.85rem 1rem', borderTop: '1px solid var(--color-border)' }}>
+            <button 
+              onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))} 
+              disabled={currentPage === 0}
+              className="btn-secondary"
+              style={{ padding: '0.45rem 0.85rem', fontSize: '0.8125rem' }}
+            >
+              &larr; SEBELUMNYA
+            </button>
+            <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-text-secondary)', textAlign: 'center' }}>
+              Menampilkan {accounts.length === 0 ? 0 : currentPage * ITEMS_PER_PAGE + 1} - {Math.min((currentPage + 1) * ITEMS_PER_PAGE, accounts.length)} dari {accounts.length} akun &bull; Halaman {currentPage + 1} dari {totalPages}
+            </span>
+            <button 
+              onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))} 
+              disabled={currentPage >= totalPages - 1}
+              className="btn-secondary"
+              style={{ padding: '0.45rem 0.85rem', fontSize: '0.8125rem' }}
+            >
+              SELANJUTNYA &rarr;
+            </button>
+          </div>
+        )}
       </div>
 
       {/* MODAL: Buat Akun Baru / Ubah & Reset Password */}
