@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin, isSupabaseConfigured } from '../../../lib/supabase';
+import { supabaseAdmin, isSupabaseConfigured, isSupabaseAvailable } from '../../../lib/supabase';
 import { db } from '../../../lib/db';
 
 export async function GET(req) {
@@ -9,25 +9,51 @@ export async function GET(req) {
   // ============================================================================
   // 1. SUPABASE REALTIME & AGGREGATED QUERIES
   // ============================================================================
-  if (isSupabaseConfigured() && supabaseAdmin) {
+  if (await isSupabaseAvailable() && supabaseAdmin) {
     try {
       if (type === 'dashboard') {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const todayIso = today.toISOString();
 
-        // Ambil transaksi hari ini
-        const { data: trxToday } = await supabaseAdmin
-          .from('transaksi')
-          .select('id, total, status, tanggal')
-          .gte('tanggal', todayIso)
-          .eq('status', 'selesai');
+        // Data Mingguan (Senin - Minggu)
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        const diffToMonday = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+        const monday = new Date(now.setDate(diffToMonday));
+        monday.setHours(0, 0, 0, 0);
 
-        // Ambil pengeluaran hari ini
-        const { data: expToday } = await supabaseAdmin
-          .from('pengeluaran')
-          .select('nominal, tanggal')
-          .gte('tanggal', todayIso);
+        const sundayEnd = new Date(monday);
+        sundayEnd.setDate(monday.getDate() + 7);
+
+        // Run queries in parallel to eliminate sequential network latency
+        const [
+          { data: trxToday },
+          { data: expToday },
+          { data: weekTrx },
+          { data: weekExp }
+        ] = await Promise.all([
+          supabaseAdmin
+            .from('transaksi')
+            .select('id, total, status, tanggal')
+            .gte('tanggal', todayIso)
+            .eq('status', 'selesai'),
+          supabaseAdmin
+            .from('pengeluaran')
+            .select('nominal, tanggal')
+            .gte('tanggal', todayIso),
+          supabaseAdmin
+            .from('transaksi')
+            .select('total, tanggal')
+            .gte('tanggal', monday.toISOString())
+            .lt('tanggal', sundayEnd.toISOString())
+            .eq('status', 'selesai'),
+          supabaseAdmin
+            .from('pengeluaran')
+            .select('nominal, tanggal')
+            .gte('tanggal', monday.toISOString())
+            .lt('tanggal', sundayEnd.toISOString())
+        ]);
 
         const todayRevenue = (trxToday || []).reduce((sum, t) => sum + Number(t.total || 0), 0);
         const todayExpense = (expToday || []).reduce((sum, e) => sum + Number(e.nominal || 0), 0);
@@ -55,30 +81,7 @@ export async function GET(req) {
             .map(([nama, qty]) => ({ nama, qty }));
         }
 
-        // Data Mingguan (Senin - Minggu)
         const weeklyData = [];
-        const now = new Date();
-        const dayOfWeek = now.getDay();
-        const diffToMonday = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-        const monday = new Date(now.setDate(diffToMonday));
-        monday.setHours(0, 0, 0, 0);
-
-        const sundayEnd = new Date(monday);
-        sundayEnd.setDate(monday.getDate() + 7);
-
-        const { data: weekTrx } = await supabaseAdmin
-          .from('transaksi')
-          .select('total, tanggal')
-          .gte('tanggal', monday.toISOString())
-          .lt('tanggal', sundayEnd.toISOString())
-          .eq('status', 'selesai');
-
-        const { data: weekExp } = await supabaseAdmin
-          .from('pengeluaran')
-          .select('nominal, tanggal')
-          .gte('tanggal', monday.toISOString())
-          .lt('tanggal', sundayEnd.toISOString());
-
         for (let i = 0; i < 7; i++) {
           const dStart = new Date(monday);
           dStart.setDate(monday.getDate() + i);
@@ -123,10 +126,15 @@ export async function GET(req) {
         let queryTrx = supabaseAdmin
           .from('transaksi')
           .select(`
-            *,
+            id,
+            no_transaksi,
+            tanggal,
+            total,
+            metode_bayar,
             items:detail_transaksi(
               id,
               produk_id,
+              kategori_id,
               nama_produk,
               qty,
               harga_satuan,
@@ -137,7 +145,7 @@ export async function GET(req) {
 
         let queryExp = supabaseAdmin
           .from('pengeluaran')
-          .select('*')
+          .select('id, no_transaksi, tanggal, kategori, nominal')
           .order('tanggal', { ascending: false });
 
         if (startStr && endStr) {
@@ -199,7 +207,10 @@ export async function GET(req) {
           averageTicket,
           categoryBreakdown,
           expenseCategoryBreakdown,
-          transactionsList: trxs,
+          transactionsList: trxs.map(t => ({
+            ...t,
+            kasir: t.kasir || (t.user_id ? 'Kasir' : 'Kasir Gerai'),
+          })),
           expensesList: exps
         });
       }
@@ -358,10 +369,14 @@ export async function GET(req) {
       averageTicket,
       categoryBreakdown,
       expenseCategoryBreakdown,
-      transactionsList: transactions.map(t => ({
-        ...t,
-        items: db.detailTransaksi.filter(dt => dt.transaksi_id === t.id)
-      })),
+      transactionsList: transactions.map(t => {
+        const u = db.users ? db.users.find(usr => usr.id === t.user_id) : null;
+        return {
+          ...t,
+          kasir: t.kasir || (u ? u.nama : 'Kasir Gerai'),
+          items: db.detailTransaksi.filter(dt => dt.transaksi_id === t.id)
+        };
+      }),
       expensesList: expenses
     });
   }

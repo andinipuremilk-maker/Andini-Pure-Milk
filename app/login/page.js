@@ -1,45 +1,118 @@
 'use client';
-import { useState, useEffect, Suspense } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { 
+  IconMilk, 
+  IconCart, 
+  IconShield, 
+  IconStore, 
+  IconArrowLeft, 
+  IconPlus, 
+  IconAlertCircle, 
+  IconCheck, 
+  IconX 
+} from '../../components/ui/icons';
+
+const DEFAULT_BOOTHS = [
+  'Booth 1 - Gerai Utama (Pusat)',
+  'Booth 2 - Alun-Alun Kota',
+  'Booth 3 - Pantai Boom',
+  'Booth 4 - Kampus & Sekolah',
+  'Booth 5 - RTH Maron Genteng',
+  'Booth Event / Bazar Keliling',
+  'Lainnya (Kustom)'
+];
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const roleParam = searchParams.get('role');
-  const role = (roleParam === 'admin' || roleParam === 'kasir') ? roleParam : 'kasir';
+  
+  // Tab role dikelola via state reaktif agar UI berubah instan (default kasir)
+  const [role, setRole] = useState(roleParam === 'admin' ? 'admin' : 'kasir');
+  const isAdmin = role === 'admin';
 
   const [username, setUsername] = useState(role === 'admin' ? 'admin' : 'kasir');
   const [password, setPassword] = useState(role === 'admin' ? 'admin' : 'kasir');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const isAdmin = role === 'admin';
-
-  useEffect(() => {
-    setUsername(role === 'admin' ? 'admin' : 'kasir');
-    setPassword(role === 'admin' ? 'admin' : 'kasir');
-  }, [role]);
-
-  // Auto-redirect if already logged in
-  useEffect(() => {
-    try {
-      const userStr = localStorage.getItem('user');
-      if (userStr) {
-        const u = JSON.parse(userStr);
-        if (u && u.role === role) {
-          router.push(isAdmin ? '/admin/dashboard' : '/kasir');
+  // Booth Penjualan State (Selalu Aktif & Wajib, Default Kosong "")
+  const [selectedBooth, setSelectedBooth] = useState('');
+  const [customBooth, setCustomBooth] = useState('');
+  const [boothList, setBoothList] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedBooths = localStorage.getItem('andini_booths');
+        if (savedBooths) {
+          const parsed = JSON.parse(savedBooths);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
         }
+      } catch (e) {}
+    }
+    return DEFAULT_BOOTHS;
+  });
+  const [showQuickAddBooth, setShowQuickAddBooth] = useState(false);
+  const [newBoothInput, setNewBoothInput] = useState('');
+  const [quickBoothError, setQuickBoothError] = useState('');
+
+  // Switch tab kasir / admin
+  const handleTabChange = (targetRole) => {
+    setRole(targetRole);
+    setUsername(targetRole);
+    setPassword(targetRole);
+    setError('');
+    router.replace(`/login?role=${targetRole}`);
+  };
+
+  // Handle Tambah Booth Baru
+  const handleAddNewBooth = () => {
+    const trimmed = newBoothInput.trim();
+    if (!trimmed) {
+      setQuickBoothError('Nama booth tidak boleh kosong.');
+      return;
+    }
+    setQuickBoothError('');
+    setBoothList(prev => {
+      const withoutCustom = prev.filter(b => b !== 'Lainnya (Kustom)');
+      if (!withoutCustom.includes(trimmed)) {
+        withoutCustom.push(trimmed);
       }
-    } catch (e) {}
-  }, [role, isAdmin, router]);
+      const updated = [...withoutCustom, 'Lainnya (Kustom)'];
+      try {
+        localStorage.setItem('andini_booths', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+    setSelectedBooth(trimmed);
+    setNewBoothInput('');
+    setShowQuickAddBooth(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
+    // Validasi booth: Wajib memilih booth sebelum masuk!
+    if (!selectedBooth || selectedBooth.trim() === '') {
+      setError('Silakan pilih lokasi booth penjualan sebelum melanjutkan.');
+      return;
+    }
+
     if (!username.trim() || !password) {
       setError('Username dan password harus diisi.');
       return;
+    }
+
+    let effectiveBooth = selectedBooth;
+    if (selectedBooth === 'Lainnya (Kustom)') {
+      if (!customBooth.trim()) {
+        setError('Silakan masukkan nama booth penjualan kustom Anda.');
+        return;
+      }
+      effectiveBooth = customBooth.trim();
     }
 
     setLoading(true);
@@ -59,8 +132,12 @@ function LoginForm() {
         return;
       }
 
-      // Save session
-      localStorage.setItem('user', JSON.stringify(data));
+      // Simpan session termasuk lokasi booth kasir/admin
+      const sessionUser = {
+        ...data,
+        booth: effectiveBooth
+      };
+      localStorage.setItem('user', JSON.stringify(sessionUser));
 
       if (data.role === 'admin') {
         router.push('/admin/dashboard');
@@ -73,259 +150,397 @@ function LoginForm() {
     }
   };
 
-  const toggleRole = () => {
-    const nextRole = isAdmin ? 'kasir' : 'admin';
-    setError('');
-    router.push(`/login?role=${nextRole}`);
-  };
-
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      flexDirection: 'column', 
-      backgroundColor: isAdmin ? '#0f0f11' : '#ffffff',
-      color: isAdmin ? '#f4f4f5' : '#18181b',
-      fontFamily: 'inherit'
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      backgroundColor: 'var(--surface-canvas)',
+      color: 'var(--text-primary)'
     }}>
-      
-      {/* Top Bar Header */}
-      <div style={{ 
+      {/* Top Header Bar */}
+      <header style={{
         width: '100%',
         maxWidth: '1000px',
         margin: '0 auto',
-        padding: '1rem 1.25rem', 
-        display: 'flex', 
-        justify: 'flex-start', 
+        padding: '1.25rem 1.5rem',
+        display: 'flex',
+        justifyContent: 'space-between',
         alignItems: 'center',
         boxSizing: 'border-box'
       }}>
-        <button 
-          onClick={() => router.push('/')} 
-          style={{ 
-            fontWeight: 700, 
-            fontSize: '0.8125rem', 
-            cursor: 'pointer', 
-            background: 'none', 
-            border: 'none',
-            color: isAdmin ? '#a1a1aa' : '#71717a',
-            letterSpacing: '0.5px'
+        <button
+          onClick={() => router.push('/')}
+          style={{
+            fontSize: '0.8125rem',
+            fontWeight: 600,
+            color: 'var(--text-secondary)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            transition: 'color 0.15s ease'
           }}
+          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
         >
-          &larr; BERANDA
+          <IconArrowLeft size={16} />
+          <span>Kembali ke Beranda</span>
         </button>
-      </div>
 
-      {/* Main Form Center Box */}
-      <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1.25rem 1rem' }}>
-        <div 
-          style={{ 
-            width: '100%', 
-            maxWidth: '380px', 
-            padding: '0.5rem'
-          }}
-        >
-          
-          {/* Header Role Badge & Switcher Tabs */}
-          <div style={{ marginBottom: '1.75rem', textAlign: 'center' }}>
-            <span style={{ 
-              fontSize: '0.6875rem', 
-              fontWeight: 800, 
-              letterSpacing: '1.5px', 
-              color: 'var(--color-chocolate)',
-              textTransform: 'uppercase',
-              display: 'inline-block',
-              padding: '0.2rem 0.6rem',
-              borderRadius: '9999px',
-              backgroundColor: isAdmin ? 'rgba(124, 74, 45, 0.2)' : 'var(--color-chocolate-light)',
-              border: '1px solid var(--color-chocolate-border)',
-              marginBottom: '0.75rem'
-            }}>
-              ANDINI PURE MILK
-            </span>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 500 }}>
+          Andini Pure Milk POS
+        </span>
+      </header>
 
-            <h1 style={{ 
-              fontSize: '1.75rem', 
-              fontWeight: 900, 
-              letterSpacing: '-0.5px', 
-              margin: '0 0 1rem 0',
-              color: isAdmin ? '#ffffff' : '#0a0a0a'
+      {/* Main Login Form Container */}
+      <main style={{
+        flex: 1,
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: '1.5rem 1rem'
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '420px',
+          backgroundColor: 'var(--surface-panel)',
+          borderRadius: 'var(--radius-xl)',
+          border: '1px solid var(--border-subtle)',
+          boxShadow: 'var(--shadow-sm)',
+          padding: '2rem 1.75rem'
+        }}>
+          {/* Header */}
+          <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--accent-subtle)',
+              border: '1px solid var(--accent-border)',
+              color: 'var(--accent-primary)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '0.85rem'
             }}>
-              Masuk Akun
+              <IconMilk size={20} />
+            </div>
+
+            <h1 style={{
+              fontSize: '1.375rem',
+              fontWeight: 700,
+              color: 'var(--text-primary)',
+              margin: '0 0 0.25rem 0',
+              letterSpacing: '-0.02em'
+            }}>
+              Masuk ke Sistem
             </h1>
+            <p style={{
+              fontSize: '0.8125rem',
+              color: 'var(--text-secondary)',
+              margin: 0
+            }}>
+              Pilih peran dan gerai penugasan Anda
+            </p>
 
-            {/* Segmented Role Switcher Tab */}
-            <div style={{ 
-              display: 'flex', 
-              padding: '3px', 
-              borderRadius: '8px', 
-              backgroundColor: isAdmin ? '#18181b' : '#f4f4f5',
-              border: `1px solid ${isAdmin ? '#27272a' : '#e4e4e7'}`,
-              marginBottom: '1rem'
+            {/* Segmented Role Switcher */}
+            <div style={{
+              display: 'flex',
+              padding: '3px',
+              borderRadius: 'var(--radius-lg)',
+              backgroundColor: 'var(--surface-subtle)',
+              border: '1px solid var(--border-subtle)',
+              marginTop: '1.25rem'
             }}>
               <button
                 type="button"
-                onClick={() => router.push('/login?role=kasir')}
+                onClick={() => handleTabChange('kasir')}
                 style={{
                   flex: 1,
-                  padding: '0.55rem',
-                  borderRadius: '6px',
-                  fontSize: '0.75rem',
-                  fontWeight: 800,
-                  backgroundColor: !isAdmin ? 'var(--color-chocolate)' : 'transparent',
-                  color: !isAdmin ? '#ffffff' : (isAdmin ? '#a1a1aa' : '#71717a'),
+                  padding: '0.55rem 0.75rem',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  backgroundColor: !isAdmin ? 'var(--surface-panel)' : 'transparent',
+                  color: !isAdmin ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  boxShadow: !isAdmin ? 'var(--shadow-xs)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
                   transition: 'all 0.15s ease'
                 }}
               >
-                🛒 KASIR (POS)
+                <IconCart size={15} />
+                <span>Kasir (POS)</span>
               </button>
+
               <button
                 type="button"
-                onClick={() => router.push('/login?role=admin')}
+                onClick={() => handleTabChange('admin')}
                 style={{
                   flex: 1,
-                  padding: '0.55rem',
-                  borderRadius: '6px',
-                  fontSize: '0.75rem',
-                  fontWeight: 800,
-                  backgroundColor: isAdmin ? 'var(--color-chocolate)' : 'transparent',
-                  color: isAdmin ? '#ffffff' : '#71717a',
+                  padding: '0.55rem 0.75rem',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  backgroundColor: isAdmin ? 'var(--surface-panel)' : 'transparent',
+                  color: isAdmin ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  boxShadow: isAdmin ? 'var(--shadow-xs)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
                   transition: 'all 0.15s ease'
                 }}
               >
-                👑 ADMIN PANEL
+                <IconShield size={15} />
+                <span>Admin Panel</span>
               </button>
             </div>
           </div>
 
           {/* Alert Message */}
           {error && (
-            <div style={{ 
-              border: '1px solid #ef4444', 
-              padding: '0.75rem 1rem', 
-              borderRadius: '6px', 
-              marginBottom: '1.25rem', 
-              color: '#ef4444', 
-              fontWeight: 600, 
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.6rem',
+              padding: '0.75rem 0.9rem',
+              borderRadius: 'var(--radius-md)',
+              marginBottom: '1.25rem',
+              color: 'var(--status-danger)',
               fontSize: '0.8125rem',
-              backgroundColor: 'rgba(239, 68, 68, 0.05)',
-              textAlign: 'center'
+              fontWeight: 500,
+              backgroundColor: 'var(--status-danger-bg)',
+              border: '1px solid var(--status-danger-border)',
+              lineHeight: 1.4
             }}>
-              {error}
+              <IconAlertCircle size={16} style={{ flexShrink: 0 }} />
+              <span>{error}</span>
             </div>
           )}
 
-          {/* Minimalist Login Form */}
+          {/* Form Login */}
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            
+            {/* Booth Penjualan (Selalu Muncul) */}
+            <div style={{
+              padding: '0.85rem',
+              backgroundColor: 'var(--surface-subtle)',
+              border: `1px solid ${!selectedBooth && error ? 'var(--status-danger-border)' : 'var(--border-subtle)'}`,
+              borderRadius: 'var(--radius-lg)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.45rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}>
+                  <IconStore size={14} />
+                  <span>Lokasi Booth Penjualan</span>
+                  <span style={{ color: 'var(--status-danger)' }}>*</span>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuickAddBooth(!showQuickAddBooth);
+                    setQuickBoothError('');
+                  }}
+                  style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    color: 'var(--accent-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem'
+                  }}
+                >
+                  {showQuickAddBooth ? (
+                    <>
+                      <IconX size={13} />
+                      <span>Tutup</span>
+                    </>
+                  ) : (
+                    <>
+                      <IconPlus size={13} />
+                      <span>Tambah Baru</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Form Quick Add Booth Baru */}
+              {showQuickAddBooth && (
+                <div style={{
+                  backgroundColor: 'var(--surface-panel)',
+                  padding: '0.65rem 0.75rem',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-subtle)',
+                  marginTop: '0.25rem',
+                  boxShadow: 'var(--shadow-xs)'
+                }}>
+                  <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                    Daftarkan Nama Gerai / Booth Baru:
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="Contoh: Booth 6 - Pasar Rogojampi"
+                      value={newBoothInput}
+                      onChange={e => setNewBoothInput(e.target.value)}
+                      style={{ padding: '0.45rem 0.65rem', fontSize: '0.8125rem' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddNewBooth}
+                      disabled={!newBoothInput.trim()}
+                      className="btn-primary"
+                      style={{ padding: '0.45rem 0.85rem', fontSize: '0.75rem' }}
+                    >
+                      Simpan
+                    </button>
+                  </div>
+                  {quickBoothError && (
+                    <div style={{ color: 'var(--status-danger)', fontSize: '0.6875rem', marginTop: '0.3rem', fontWeight: 500 }}>
+                      {quickBoothError}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Select Booth */}
+              <select
+                className="input-field"
+                value={selectedBooth}
+                onChange={e => {
+                  const val = e.target.value;
+                  if (val === '__ADD_NEW__') {
+                    setShowQuickAddBooth(true);
+                    setSelectedBooth('');
+                  } else {
+                    setSelectedBooth(val);
+                    if (error) setError('');
+                  }
+                }}
+                style={{
+                  fontWeight: selectedBooth ? 600 : 400,
+                  color: selectedBooth ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                  backgroundColor: 'var(--surface-panel)'
+                }}
+              >
+                <option value="">-- Pilih Booth Penjualan --</option>
+                {boothList.map(b => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+                <option value="__ADD_NEW__">+ Daftarkan Booth Baru...</option>
+              </select>
+
+              {selectedBooth === 'Lainnya (Kustom)' && (
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Ketik nama booth kustom Anda..."
+                  value={customBooth}
+                  onChange={e => setCustomBooth(e.target.value)}
+                  style={{ marginTop: '0.35rem', fontSize: '0.8125rem' }}
+                />
+              )}
+
+              {selectedBooth && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.6875rem', color: 'var(--status-success)', fontWeight: 600 }}>
+                  <IconCheck size={13} />
+                  <span>Gerai aktif: {selectedBooth}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Username Input */}
             <div>
-              <label style={{ 
-                display: 'block', 
-                fontSize: '0.75rem', 
-                fontWeight: 700, 
-                marginBottom: '0.35rem',
-                color: isAdmin ? '#a1a1aa' : '#71717a'
+              <label style={{
+                display: 'block',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
+                marginBottom: '0.35rem'
               }}>
                 Username
               </label>
-              <input 
-                type="text" 
-                className="input-field" 
+              <input
+                type="text"
+                className="input-field"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Masukkan username"
-                style={{
-                  backgroundColor: isAdmin ? '#18181b' : '#ffffff',
-                  color: isAdmin ? '#ffffff' : '#09090b',
-                  borderColor: isAdmin ? '#27272a' : '#e4e4e7',
-                  borderRadius: '6px',
-                  padding: '0.75rem 1rem',
-                  fontSize: '0.875rem'
-                }}
                 required
               />
             </div>
 
+            {/* Password Input */}
             <div>
-              <label style={{ 
-                display: 'block', 
-                fontSize: '0.75rem', 
-                fontWeight: 700, 
-                marginBottom: '0.35rem',
-                color: isAdmin ? '#a1a1aa' : '#71717a'
+              <label style={{
+                display: 'block',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
+                marginBottom: '0.35rem'
               }}>
                 Password
               </label>
-              <input 
-                type="password" 
-                className="input-field" 
+              <input
+                type="password"
+                className="input-field"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Masukkan password"
-                style={{
-                  backgroundColor: isAdmin ? '#18181b' : '#ffffff',
-                  color: isAdmin ? '#ffffff' : '#09090b',
-                  borderColor: isAdmin ? '#27272a' : '#e4e4e7',
-                  borderRadius: '6px',
-                  padding: '0.75rem 1rem',
-                  fontSize: '0.875rem'
-                }}
                 required
               />
             </div>
 
-            <button 
-              type="submit" 
-              disabled={loading} 
-              style={{ 
-                marginTop: '0.5rem', 
-                padding: '0.85rem',
-                backgroundColor: 'var(--color-chocolate)',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '6px',
-                fontWeight: 800,
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary"
+              style={{
+                width: '100%',
+                padding: '0.75rem',
                 fontSize: '0.875rem',
-                cursor: 'pointer',
-                letterSpacing: '0.5px',
-                transition: 'background-color 0.15s ease'
+                marginTop: '0.25rem'
               }}
             >
-              {loading ? 'Memproses...' : `Masuk Sebagai ${role.toUpperCase()}`}
+              <span>{loading ? 'Memverifikasi...' : `Masuk sebagai ${role === 'admin' ? 'Administrator' : 'Kasir'}`}</span>
             </button>
 
-            {/* Default credentials note with chocolate accent */}
+            {/* Helper Note */}
             <div style={{
               padding: '0.6rem 0.75rem',
-              borderRadius: '6px',
-              backgroundColor: isAdmin ? 'rgba(124, 74, 45, 0.15)' : 'var(--color-chocolate-light)',
-              border: '1px solid var(--color-chocolate-border)',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--surface-subtle)',
+              border: '1px solid var(--border-subtle)',
               textAlign: 'center',
               fontSize: '0.75rem',
-              color: isAdmin ? '#d4d4d8' : '#683b20'
+              color: 'var(--text-secondary)'
             }}>
-              Akun Default: <strong style={{ color: isAdmin ? '#ffffff' : 'var(--color-chocolate)' }}>{role}</strong> &bull; Password: <strong style={{ color: isAdmin ? '#ffffff' : 'var(--color-chocolate)' }}>{role}</strong>
+              Akun Default: <strong style={{ color: 'var(--text-primary)' }}>{role}</strong> &bull; Password: <strong style={{ color: 'var(--text-primary)' }}>{role}</strong>
             </div>
-
-            {/* Admin-only account notice */}
-            <div style={{ marginTop: '0.5rem', textAlign: 'center' }}>
-              <p style={{ fontSize: '0.75rem', color: isAdmin ? '#71717a' : '#a1a1aa', margin: 0, lineHeight: 1.4 }}>
-                🔒 Registrasi & pengelolaan akun dikelola terpusat melalui <strong>Panel Admin</strong>.
-              </p>
-            </div>
-
           </form>
-
         </div>
-      </div>
-
+      </main>
     </div>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div style={{ padding: '3rem', textAlign: 'center', fontWeight: 700 }}>Memuat...</div>}>
+    <Suspense fallback={<div style={{ padding: '3rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)' }}>Memuat Halaman Login...</div>}>
       <LoginForm />
     </Suspense>
   );

@@ -22,11 +22,20 @@ export default function PengeluaranPage() {
 
   // Filters
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [selectedMethod, setSelectedMethod] = useState('ALL');
   const [dateRangeType, setDateRangeType] = useState('today'); // 'today' | 'week' | 'month' | 'custom' | 'ALL'
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  // Debounce search input (350ms) to avoid lagging API requests
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   // Expense Modal State
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -101,7 +110,7 @@ export default function PengeluaranPage() {
     let url = '/api/pengeluaran?';
     if (selectedCategory && selectedCategory !== 'ALL') url += `kategori=${encodeURIComponent(selectedCategory)}&`;
     if (selectedMethod && selectedMethod !== 'ALL') url += `metode_bayar=${encodeURIComponent(selectedMethod)}&`;
-    if (search) url += `search=${encodeURIComponent(search)}&`;
+    if (debouncedSearch) url += `search=${encodeURIComponent(debouncedSearch)}&`;
     if (start && end) url += `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&`;
 
     fetch(url)
@@ -118,7 +127,7 @@ export default function PengeluaranPage() {
       });
 
     return () => { isMounted = false; };
-  }, [selectedCategory, selectedMethod, search, dateRangeType, startDate, endDate, refreshKey]);
+  }, [selectedCategory, selectedMethod, debouncedSearch, dateRangeType, startDate, endDate, refreshKey]);
 
   const handleSaveExpense = async (e) => {
     e.preventDefault();

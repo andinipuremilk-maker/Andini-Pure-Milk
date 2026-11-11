@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin, isSupabaseConfigured } from '../../../lib/supabase';
+import { supabaseAdmin, isSupabaseConfigured, isSupabaseAvailable } from '../../../lib/supabase';
 import { db } from '../../../lib/db';
 
 export async function GET(req) {
@@ -8,13 +8,20 @@ export async function GET(req) {
   const start = searchParams.get('start');
   const end = searchParams.get('end');
   const metodeBayar = searchParams.get('metode_bayar');
+  const kategori = searchParams.get('kategori');
+  const limitParam = searchParams.get('limit');
+  const limit = limitParam ? parseInt(limitParam) : (start && end ? null : 200);
 
-  if (isSupabaseConfigured() && supabaseAdmin) {
+  if (await isSupabaseAvailable() && supabaseAdmin) {
     try {
       let query = supabaseAdmin
         .from('pengeluaran')
-        .select('*')
+        .select('id, no_transaksi, tanggal, kategori, deskripsi, nominal, metode_bayar, pj')
         .order('tanggal', { ascending: false });
+
+      if (kategori && kategori !== 'ALL') {
+        query = query.eq('kategori', kategori);
+      }
 
       if (metodeBayar && metodeBayar !== 'ALL') {
         query = query.eq('metode_bayar', metodeBayar);
@@ -24,19 +31,18 @@ export async function GET(req) {
         query = query.gte('tanggal', start).lte('tanggal', end);
       }
 
+      if (search && search.trim()) {
+        const q = search.trim();
+        query = query.or(`no_transaksi.ilike.%${q}%,kategori.ilike.%${q}%,deskripsi.ilike.%${q}%,pj.ilike.%${q}%`);
+      }
+
+      if (limit) {
+        query = query.limit(limit);
+      }
+
       const { data, error } = await query;
       if (!error && data) {
-        let list = data;
-        if (search) {
-          const q = search.toLowerCase();
-          list = list.filter(e => 
-            (e.no_transaksi && e.no_transaksi.toLowerCase().includes(q)) || 
-            (e.kategori && e.kategori.toLowerCase().includes(q)) ||
-            (e.deskripsi && e.deskripsi.toLowerCase().includes(q)) ||
-            (e.pj && e.pj.toLowerCase().includes(q))
-          );
-        }
-        return NextResponse.json(list);
+        return NextResponse.json(data);
       }
     } catch (err) {
       console.error('Supabase GET pengeluaran error:', err);
@@ -47,6 +53,10 @@ export async function GET(req) {
   if (!db.pengeluaran) db.pengeluaran = [];
   let list = [...db.pengeluaran];
 
+  if (kategori && kategori !== 'ALL') {
+    list = list.filter(e => e.kategori?.toLowerCase() === kategori.toLowerCase());
+  }
+
   if (metodeBayar && metodeBayar !== 'ALL') {
     list = list.filter(e => e.metode_bayar?.toLowerCase() === metodeBayar.toLowerCase());
   }
@@ -54,9 +64,9 @@ export async function GET(req) {
   if (search) {
     const q = search.toLowerCase();
     list = list.filter(e => 
-      e.no_transaksi.toLowerCase().includes(q) || 
-      e.kategori.toLowerCase().includes(q) ||
-      e.deskripsi.toLowerCase().includes(q) ||
+      e.no_transaksi?.toLowerCase().includes(q) || 
+      e.kategori?.toLowerCase().includes(q) ||
+      e.deskripsi?.toLowerCase().includes(q) ||
       (e.pj && e.pj.toLowerCase().includes(q))
     );
   }
@@ -72,13 +82,16 @@ export async function GET(req) {
   }
 
   list.sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+  if (limit) {
+    list = list.slice(0, limit);
+  }
   return NextResponse.json(list);
 }
 
 export async function POST(req) {
   const data = await req.json();
 
-  if (isSupabaseConfigured() && supabaseAdmin) {
+  if (await isSupabaseAvailable() && supabaseAdmin) {
     try {
       const payload = {
         no_transaksi: 'EXP-' + Date.now().toString().slice(-6),
@@ -126,7 +139,7 @@ export async function DELETE(req) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
 
-  if (isSupabaseConfigured() && supabaseAdmin) {
+  if (await isSupabaseAvailable() && supabaseAdmin) {
     try {
       const { error } = await supabaseAdmin
         .from('pengeluaran')

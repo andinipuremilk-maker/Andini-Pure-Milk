@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin, isSupabaseConfigured } from '../../../lib/supabase';
+import { supabaseAdmin, isSupabaseConfigured, isSupabaseAvailable } from '../../../lib/supabase';
 import { db } from '../../../lib/db';
 
 export async function GET(req) {
@@ -8,7 +8,7 @@ export async function GET(req) {
   const role = searchParams.get('role') || 'ALL';
   const status = searchParams.get('status') || 'ALL';
 
-  if (isSupabaseConfigured() && supabaseAdmin) {
+  if (await isSupabaseAvailable() && supabaseAdmin) {
     try {
       let query = supabaseAdmin
         .from('users')
@@ -115,7 +115,7 @@ export async function POST(req) {
 
     const cleanUsername = username.trim().toLowerCase();
 
-    if (isSupabaseConfigured() && supabaseAdmin) {
+    if (await isSupabaseAvailable() && supabaseAdmin) {
       const { data: existing } = await supabaseAdmin
         .from('users')
         .select('id')
@@ -195,7 +195,7 @@ export async function PUT(req) {
       return NextResponse.json({ error: 'ID Akun wajib disertakan.' }, { status: 400 });
     }
 
-    if (isSupabaseConfigured() && supabaseAdmin) {
+    if (await isSupabaseAvailable() && supabaseAdmin) {
       const updatePayload = {};
       if (nama) updatePayload.nama = nama.trim();
       if (role) updatePayload.role = role.trim().toLowerCase();
@@ -280,7 +280,7 @@ export async function DELETE(req) {
       return NextResponse.json({ error: 'ID Akun wajib disertakan.' }, { status: 400 });
     }
 
-    if (isSupabaseConfigured() && supabaseAdmin) {
+    if (await isSupabaseAvailable() && supabaseAdmin) {
       const { data: target } = await supabaseAdmin.from('users').select('username').eq('id', id).single();
       if (target && target.username === 'admin') {
         return NextResponse.json({ error: 'Akun Admin Utama dilindungi dan tidak dapat dihapus.' }, { status: 400 });

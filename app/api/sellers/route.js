@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin, isSupabaseConfigured } from '../../../lib/supabase';
+import { supabaseAdmin, isSupabaseConfigured, isSupabaseAvailable } from '../../../lib/supabase';
 import { db } from '../../../lib/db';
 
 export async function GET() {
-  if (isSupabaseConfigured() && supabaseAdmin) {
+  if (await isSupabaseAvailable() && supabaseAdmin) {
     try {
       const { data, error } = await supabaseAdmin
         .from('sellers')
@@ -39,7 +39,7 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Nama mitra / seller tidak boleh kosong.' }, { status: 400 });
     }
 
-    if (isSupabaseConfigured() && supabaseAdmin) {
+    if (await isSupabaseAvailable() && supabaseAdmin) {
       try {
         // Cek duplikasi di Supabase
         const { data: existing } = await supabaseAdmin
@@ -105,7 +105,7 @@ export async function DELETE(req) {
     return NextResponse.json({ error: 'Mitra default "Umum / Retail" tidak boleh dihapus.' }, { status: 400 });
   }
 
-  if (isSupabaseConfigured() && supabaseAdmin) {
+  if (await isSupabaseAvailable() && supabaseAdmin) {
     try {
       let query = supabaseAdmin.from('sellers').delete();
       if (id) {

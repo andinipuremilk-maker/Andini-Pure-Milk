@@ -352,11 +352,12 @@ export default function LaporanPage() {
               {stats.transactionsList && stats.transactionsList.length === 0 ? (
                 <p style={{ color: 'var(--color-text-secondary)', margin: '1rem', fontSize: '0.875rem' }}>Tidak ada transaksi.</p>
               ) : (
-                <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead>
                     <tr style={{ borderBottom: '2px solid var(--color-border)', backgroundColor: 'var(--color-bg-dark)' }}>
                       <th style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.6875rem', letterSpacing: '1px', whiteSpace: 'nowrap' }}>WAKTU & TANGGAL</th>
                       <th style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.6875rem', letterSpacing: '1px', whiteSpace: 'nowrap' }}>NO. TRX</th>
+                      <th style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.6875rem', letterSpacing: '1px', whiteSpace: 'nowrap' }}>KASIR / PJ</th>
                       <th style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.6875rem', letterSpacing: '1px' }}>RINGKASAN PRODUK</th>
                       <th style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.6875rem', letterSpacing: '1px', whiteSpace: 'nowrap' }}>METODE</th>
                       <th style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.6875rem', letterSpacing: '1px', textAlign: 'right', whiteSpace: 'nowrap' }}>TOTAL SETOR</th>
@@ -378,6 +379,23 @@ export default function LaporanPage() {
                         <tr key={i} style={{ borderBottom: i < ITEMS_PER_PAGE - 1 ? '1px solid var(--color-border)' : 'none' }}>
                           <td style={{ padding: '0.75rem 1rem', color: 'var(--color-text-secondary)', fontSize: '0.8125rem', whiteSpace: 'nowrap' }}>{formattedDate}</td>
                           <td style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.8125rem', whiteSpace: 'nowrap' }}>{item.no_transaksi}</td>
+                          <td style={{ padding: '0.75rem 1rem', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                            <span style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '0.35rem', 
+                              backgroundColor: 'rgba(124, 74, 45, 0.08)', 
+                              color: 'var(--color-chocolate)', 
+                              padding: '0.2rem 0.5rem', 
+                              borderRadius: '4px', 
+                              fontWeight: 700, 
+                              fontSize: '0.75rem',
+                              border: '1px solid rgba(124, 74, 45, 0.2)'
+                            }}>
+                              <span>👤</span>
+                              <span>{item.kasir || 'Kasir Gerai'}</span>
+                            </span>
+                          </td>
                           <td style={{ padding: '0.75rem 1rem', fontSize: '0.8125rem', fontWeight: 600 }}>{produkSummary}</td>
                           <td style={{ padding: '0.75rem 1rem', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 800, whiteSpace: 'nowrap' }}>{item.metode_bayar || 'TUNAI'}</td>
                           <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 800, fontSize: '0.875rem', whiteSpace: 'nowrap' }}>Rp {item.total.toLocaleString('id-ID')}</td>

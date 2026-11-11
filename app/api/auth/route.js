@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin, isSupabaseConfigured } from '../../../lib/supabase';
+import { supabaseAdmin, isSupabaseConfigured, isSupabaseAvailable } from '../../../lib/supabase';
 import { db } from '../../../lib/db';
 
 export async function POST(req) {
   const { username, password, role } = await req.json();
   const cleanUsername = username?.trim().toLowerCase();
 
-  // 1. Eksekusi ke Supabase jika telah dikonfigurasi
-  if (isSupabaseConfigured() && supabaseAdmin) {
+  // 1. Eksekusi ke Supabase jika telah dikonfigurasi & aktif
+  if (await isSupabaseAvailable() && supabaseAdmin) {
     try {
       const { data: user, error } = await supabaseAdmin
         .from('users')

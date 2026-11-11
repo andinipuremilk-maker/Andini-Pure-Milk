@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin, isSupabaseConfigured } from '../../../lib/supabase';
+import { supabaseAdmin, isSupabaseConfigured, isSupabaseAvailable } from '../../../lib/supabase';
 import { db } from '../../../lib/db';
 
 export async function GET() {
-  if (isSupabaseConfigured() && supabaseAdmin) {
+  if (await isSupabaseAvailable() && supabaseAdmin) {
     try {
       const { data, error } = await supabaseAdmin
         .from('kategori_produk')
@@ -25,7 +25,7 @@ export async function GET() {
 export async function POST(req) {
   const { nama } = await req.json();
 
-  if (isSupabaseConfigured() && supabaseAdmin) {
+  if (await isSupabaseAvailable() && supabaseAdmin) {
     try {
       const { data, error } = await supabaseAdmin
         .from('kategori_produk')
@@ -52,7 +52,7 @@ export async function POST(req) {
 export async function PUT(req) {
   const data = await req.json();
 
-  if (isSupabaseConfigured() && supabaseAdmin) {
+  if (await isSupabaseAvailable() && supabaseAdmin) {
     try {
       const { data: updated, error } = await supabaseAdmin
         .from('kategori_produk')
@@ -83,7 +83,7 @@ export async function DELETE(req) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
 
-  if (isSupabaseConfigured() && supabaseAdmin) {
+  if (await isSupabaseAvailable() && supabaseAdmin) {
     try {
       // Cek apakah ada produk aktif dalam kategori ini
       const { count } = await supabaseAdmin
