@@ -82,6 +82,10 @@ export default function ProdukPage() {
 
   const openProductModal = (item = null) => {
     setEditItem(item);
+    const hasVariants = Boolean(
+      item?.has_variants === true ||
+      (Array.isArray(item?.variants) && item.variants.length > 0)
+    );
     setFormData(
       item 
         ? { 
@@ -89,7 +93,8 @@ export default function ProdukPage() {
             harga_jual: item.harga_jual ?? '',
             harga_modal: item.harga_modal ?? '',
             stok: item.stok ?? 100,
-            image_url: item.image_url || ''
+            image_url: item.image_url || '',
+            has_variants: hasVariants
           } 
         : { 
             nama: '', 
@@ -98,7 +103,8 @@ export default function ProdukPage() {
             harga_modal: '', 
             stok: 100, 
             kategori_id: kategori[0]?.id || '', 
-            image_url: ''
+            image_url: '',
+            has_variants: false
           }
     );
     setModalVisible(true);
@@ -108,12 +114,21 @@ export default function ProdukPage() {
     e.preventDefault();
     setProcessing(true);
 
+    const variantsPayload = formData.has_variants
+      ? [
+          { id: 'v_kcl', nama: 'Botol Kecil (250ml)' },
+          { id: 'v_bsr', nama: 'Botol Besar (1 Liter)' }
+        ]
+      : [];
+
     const method = editItem ? 'PUT' : 'POST';
     const payload = { 
       ...formData, 
       harga_jual: parseInt(formData.harga_jual, 10) || 0,
       harga_modal: parseInt(formData.harga_modal, 10) || 0,
-      stok: parseInt(formData.stok, 10) || 0
+      stok: parseInt(formData.stok, 10) || 0,
+      has_variants: Boolean(formData.has_variants),
+      variants: variantsPayload
     };
 
     try {
@@ -366,6 +381,7 @@ export default function ProdukPage() {
               {paginatedData.map(item => {
                 const isArchived = item.is_active === false;
                 const catName = categoryMap[item.kategori_id];
+                const hasPackaging = Boolean(item.has_variants === true || (Array.isArray(item.variants) && item.variants.length > 0));
 
                 return (
                   <tr key={item.id} style={{ borderBottom: '1px solid var(--border-subtle)', opacity: isArchived ? 0.65 : 1, transition: 'background-color 0.15s ease' }}>
@@ -400,7 +416,7 @@ export default function ProdukPage() {
                         <div>
                           <div style={{ fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                             <span>{item.nama}</span>
-                            {catName?.toLowerCase().includes('susu') && (
+                            {hasPackaging && (
                               <span className="badge-chocolate" style={{ fontSize: '0.625rem', padding: '0.05rem 0.35rem', borderRadius: 'var(--radius-sm)' }}>
                                 Botol Kecil & Besar
                               </span>
@@ -435,7 +451,7 @@ export default function ProdukPage() {
                       <div style={{ fontWeight: 700, color: 'var(--terracotta)', fontSize: '0.875rem' }}>
                         Rp {Number(item.harga_jual || 0).toLocaleString('id-ID')}
                       </div>
-                      {catName?.toLowerCase().includes('susu') && (
+                      {hasPackaging && (
                         <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', display: 'block', marginTop: '0.1rem' }}>
                           Status: Kecil & Besar
                         </span>
@@ -574,15 +590,23 @@ export default function ProdukPage() {
                 </select>
               </div>
 
-              {/* Info Kemasan Otomatis untuk Kategori Susu */}
-              {categoryMap[formData.kategori_id]?.toLowerCase().includes('susu') && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.65rem 0.85rem', backgroundColor: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
-                  <IconMilk size={18} style={{ color: 'var(--terracotta)', flexShrink: 0 }} />
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                    <strong>Kategori Susu:</strong> Kasir otomatis menampilkan pilihan kemasan <strong>Botol Kecil (250ml)</strong> dan <strong>Botol Besar (1L)</strong> sebagai status tanpa perlu input harga terpisah.
-                  </span>
-                </div>
-              )}
+              {/* Opsi Pilihan Kemasan Botol Kecil & Botol Besar (Manual oleh Admin, Tanpa Setting Harga Terpisah) */}
+              <div style={{ padding: '0.75rem', backgroundColor: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.78125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(formData.has_variants)}
+                    onChange={e => setFormData({ ...formData, has_variants: e.target.checked })}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <span>Miliki Pilihan Botol Kecil (250ml) & Botol Besar (1L)</span>
+                </label>
+                {formData.has_variants && (
+                  <p style={{ margin: '0.35rem 0 0 1.5rem', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                    Kasir akan memunculkan pilihan status Botol Kecil & Botol Besar saat produk ini dipilih. Harga otomatis mengikuti harga jual produk.
+                  </p>
+                )}
+              </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div>

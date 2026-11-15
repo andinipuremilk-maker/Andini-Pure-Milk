@@ -222,10 +222,12 @@ export default function KasirPage() {
 
   const getOrderItemKey = (item) => item.order_item_key || `${item.produk_id}__${item.nama}`;
 
-  const isMilkCategory = (prod) => {
+  const hasPackagingOption = (prod) => {
     if (!prod) return false;
-    const catName = getCategoryName(prod.kategori_id)?.toLowerCase() || '';
-    return catName.includes('susu') || prod.kategori_id === 'k1' || prod.kategori_id === '11111111-1111-1111-1111-111111111111';
+    return Boolean(
+      prod.has_variants === true ||
+      (Array.isArray(prod.variants) && prod.variants.length > 0)
+    );
   };
 
   const addToOrder = (product, kemasan = null) => {
@@ -905,7 +907,7 @@ export default function KasirPage() {
               gap: '0.85rem' 
             }}>
               {filteredProduk.map(p => {
-                const isMilk = isMilkCategory(p);
+                const hasPackaging = hasPackagingOption(p);
                 const inCartItems = order.filter(item => item.produk_id === p.id);
                 const inCartQty = inCartItems.reduce((sum, item) => sum + item.qty, 0);
 
@@ -913,7 +915,7 @@ export default function KasirPage() {
                   <div 
                     key={p.id}
                     onClick={() => {
-                      if (isMilk) {
+                      if (hasPackaging) {
                         setVariantModalProduct(p);
                       } else {
                         addToOrder(p);
@@ -1020,7 +1022,7 @@ export default function KasirPage() {
                           }}>
                             {getCategoryName(p.kategori_id)}
                           </span>
-                          {isMilk && (
+                          {hasPackaging && (
                             <span className="badge-neutral" style={{ fontSize: '0.625rem', padding: '0.08rem 0.35rem', borderRadius: 'var(--radius-sm)', flexShrink: 0 }}>
                               Botol Kecil / Besar
                             </span>
