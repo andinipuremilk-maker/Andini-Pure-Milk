@@ -548,7 +548,7 @@ export default function KasirPage() {
         if (selectedDetailTx?.id === cancelConfirmTx.id) setSelectedDetailTx(null);
         setCancelConfirmTx(null);
         loadPendingCount();
-        setCancellationNotice(`✅ Transaksi ${deletedNo} berhasil dibatalkan dan dihapus dari sistem.`);
+        setCancellationNotice(`Transaksi ${deletedNo} berhasil dibatalkan dan dihapus dari sistem.`);
         setTimeout(() => setCancellationNotice(''), 4000);
       } else {
         alert('Gagal membatalkan transaksi.');

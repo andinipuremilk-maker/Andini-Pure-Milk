@@ -1098,7 +1098,13 @@ export default function PemasukanPage() {
                 className="btn-chocolate"
                 style={{ flex: 1.5, padding: '0.65rem', fontWeight: 800 }}
               >
-                {savingPendingComplete ? 'MEMPROSES...' : '✅ SELESAIKAN & SIMPAN'}
+                {savingPendingComplete ? (
+                  'MEMPROSES...'
+                ) : (
+                  <>
+                    <IconCheck size={15} style={{ marginRight: '0.35rem' }} /> Selesaikan & Simpan
+                  </>
+                )}
               </button>
             </div>
 
@@ -1151,8 +1157,9 @@ export default function PemasukanPage() {
                 </button>
               </div>
               {sellerError && (
-                <div style={{ color: 'var(--color-error)', fontSize: '0.75rem', marginTop: '0.5rem', fontWeight: 700 }}>
-                  ⚠️ {sellerError}
+                <div style={{ color: 'var(--color-error)', fontSize: '0.75rem', marginTop: '0.5rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <IconAlertCircle size={14} />
+                  <span>{sellerError}</span>
                 </div>
               )}
             </form>
@@ -1233,7 +1240,9 @@ export default function PemasukanPage() {
       {deleteConfirmSeller && (
         <div className="modal-overlay" style={{ zIndex: 1200 }}>
           <div className="modal-content" style={{ maxWidth: '420px', width: '90%', textAlign: 'center' }}>
-            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>⚠️</div>
+            <div style={{ width: '44px', height: '44px', borderRadius: '50%', backgroundColor: 'var(--status-danger-bg)', border: '1px solid var(--status-danger-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', color: 'var(--status-danger)' }}>
+              <IconAlertCircle size={24} />
+            </div>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: '0.5rem' }}>Hapus Mitra Konsinyasi?</h3>
             <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', marginBottom: '1.25rem', lineHeight: 1.5 }}>
               Apakah Anda yakin ingin menghapus mitra <strong>&quot;{deleteConfirmSeller.nama}&quot;</strong>? Transaksi lama yang terkait tidak akan terhapus.
@@ -1270,16 +1279,15 @@ export default function PemasukanPage() {
               width: '54px', 
               height: '54px', 
               borderRadius: '50%', 
-              backgroundColor: '#fee2e2', 
-              color: '#dc2626', 
+              backgroundColor: 'var(--status-danger-bg)', 
+              color: 'var(--status-danger)', 
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center', 
-              fontSize: '1.75rem', 
               margin: '0 auto 1rem auto',
-              border: '2px solid #fecaca'
+              border: '1px solid var(--status-danger-border)'
             }}>
-              ⚠️
+              <IconAlertCircle size={28} />
             </div>
 
             <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 0.45rem 0' }}>
@@ -1323,16 +1331,20 @@ export default function PemasukanPage() {
             </div>
 
             <div style={{ 
-              backgroundColor: '#fffbeb', 
-              border: '1px solid #fde68a', 
+              backgroundColor: 'var(--status-warning-bg)', 
+              border: '1px solid var(--status-warning-border)', 
               padding: '0.6rem 0.75rem', 
-              borderRadius: '4px', 
+              borderRadius: 'var(--radius-md)', 
               fontSize: '0.72rem', 
-              color: '#92400e', 
+              color: 'var(--status-warning)', 
               marginBottom: '1.5rem',
-              textAlign: 'left'
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem'
             }}>
-              ℹ️ <em>Stok produk gerai tetap aman dan tidak terpotong karena transaksi ini berstatus pending.</em>
+              <IconAlertCircle size={14} style={{ flexShrink: 0 }} />
+              <em>Stok produk gerai tetap aman dan tidak terpotong karena transaksi ini berstatus pending.</em>
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>
