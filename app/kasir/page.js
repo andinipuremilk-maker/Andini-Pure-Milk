@@ -36,17 +36,8 @@ export default function KasirPage() {
   
   const [order, setOrder] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const userStr = localStorage.getItem('user');
-        if (userStr) return JSON.parse(userStr);
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
-  });
+  const [mounted, setMounted] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   // Modal State
   const [showPayment, setShowPayment] = useState(false);
@@ -180,6 +171,7 @@ export default function KasirPage() {
   };
 
   useEffect(() => {
+    setMounted(true);
     // Check auth (kasir & admin diperbolehkan)
     try {
       const userStr = localStorage.getItem('user');
@@ -192,6 +184,7 @@ export default function KasirPage() {
         router.push('/login?role=kasir');
         return;
       }
+      setCurrentUser(user);
     } catch (e) {
       router.push('/login?role=kasir');
       return;
@@ -683,7 +676,7 @@ export default function KasirPage() {
           </button>
 
           {/* Shortcut ke Panel Admin jika User ber-role Admin */}
-          {currentUser?.role === 'admin' && (
+          {mounted && currentUser?.role === 'admin' && (
             <button
               type="button"
               onClick={() => router.push('/admin/transaksi/pemasukan')}
@@ -713,7 +706,8 @@ export default function KasirPage() {
           }}>
             <IconStore size={14} style={{ color: 'var(--accent-primary)' }} />
             <select
-              value={currentUser?.booth || ''}
+              suppressHydrationWarning
+              value={mounted && currentUser?.booth ? currentUser.booth : ''}
               onChange={(e) => {
                 const newBooth = e.target.value;
                 const updatedUser = { ...(currentUser || {}), booth: newBooth };
@@ -751,9 +745,9 @@ export default function KasirPage() {
             </select>
           </div>
 
-          <span className="badge-neutral" style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}>
+          <span className="badge-neutral" style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }} suppressHydrationWarning>
             <IconUser size={13} />
-            <span>{currentUser?.nama || 'Kasir'}</span>
+            <span>{mounted && currentUser?.nama ? currentUser.nama : 'Kasir'}</span>
           </span>
 
           <button 

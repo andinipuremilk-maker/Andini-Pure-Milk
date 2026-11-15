@@ -26,24 +26,15 @@ export default function AdminLayout({ children }) {
   const [loading, setLoading] = useState(false);
   const [transaksiManualToggle, setTransaksiManualToggle] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [adminUser, setAdminUser] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const userStr = localStorage.getItem('user');
-        if (userStr) {
-          const user = JSON.parse(userStr);
-          if (user && user.role === 'admin') return user;
-        }
-      } catch (e) {}
-    }
-    return null;
-  });
+  const [adminUser, setAdminUser] = useState(null);
+  const [mounted, setMounted] = useState(false);
 
   const isTransaksiOpen = transaksiManualToggle !== null 
     ? transaksiManualToggle 
     : pathname.startsWith('/admin/transaksi');
 
   useEffect(() => {
+    setMounted(true);
     try {
       const userStr = localStorage.getItem('user');
       if (!userStr) {
@@ -53,7 +44,9 @@ export default function AdminLayout({ children }) {
       const user = JSON.parse(userStr);
       if (!user || user.role !== 'admin') {
         router.push('/login?role=admin');
+        return;
       }
+      setAdminUser(user);
     } catch (e) {
       router.push('/login?role=admin');
     }
@@ -408,12 +401,15 @@ export default function AdminLayout({ children }) {
               fontSize: '0.72rem',
               fontWeight: 700,
               flexShrink: 0
-            }}>
-              {adminUser?.nama?.charAt(0) || 'A'}
+            }} suppressHydrationWarning>
+              {mounted && adminUser?.nama ? adminUser.nama.charAt(0) : 'A'}
             </div>
             <div style={{ overflow: 'hidden' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                {adminUser?.nama || 'Administrator'}
+              <span 
+                suppressHydrationWarning 
+                style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}
+              >
+                {mounted && adminUser?.nama ? adminUser.nama : 'Administrator'}
               </span>
               <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', display: 'block' }}>
                 Pusat
