@@ -48,6 +48,7 @@ export async function POST(req) {
         stok: Number(data.stok) || 0,
         kategori_id: data.kategori_id || null,
         image_url: data.image_url || null,
+        variants: data.variants || [],
         is_active: true
       };
 

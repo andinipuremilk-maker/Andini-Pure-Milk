@@ -98,6 +98,7 @@ export default function KasirPage() {
     'Lainnya (Kustom)'
   ]);
   const [boothsList, setBoothsList] = useState([]);
+  const [variantModalProduct, setVariantModalProduct] = useState(null);
   const [showQuickAddSeller, setShowQuickAddSeller] = useState(false);
   const [quickSellerName, setQuickSellerName] = useState('');
   const [savingQuickSeller, setSavingQuickSeller] = useState(false);
@@ -219,20 +220,29 @@ export default function KasirPage() {
     router.push('/login?role=kasir');
   };
 
-  const addToOrder = (product) => {
+  const getOrderItemKey = (item) => item.order_item_key || `${item.produk_id}__${item.nama}`;
+
+  const addToOrder = (product, selectedVariant = null) => {
+    const itemKey = selectedVariant ? `${product.id}__${selectedVariant.id}` : product.id;
+    const itemNama = selectedVariant ? `${product.nama} (${selectedVariant.nama})` : product.nama;
+    const itemHarga = selectedVariant ? Number(selectedVariant.harga_jual) : Number(product.harga_jual);
+
     setOrder(prev => {
-      const existing = prev.find(item => item.produk_id === product.id);
+      const existing = prev.find(item => getOrderItemKey(item) === itemKey);
       if (existing) {
         return prev.map(item => 
-          item.produk_id === product.id 
+          getOrderItemKey(item) === itemKey
             ? { ...item, qty: item.qty + 1 }
             : item
         );
       }
       return [...prev, { 
+        order_item_key: itemKey,
         produk_id: product.id, 
-        nama: product.nama, 
-        harga_satuan: product.harga_jual, 
+        variant_id: selectedVariant?.id || null,
+        variant_nama: selectedVariant?.nama || null,
+        nama: itemNama, 
+        harga_satuan: itemHarga, 
         qty: 1,
         image_url: product.image_url || null
       }];
@@ -240,8 +250,9 @@ export default function KasirPage() {
   };
 
   const updateQty = (item, delta) => {
+    const targetKey = getOrderItemKey(item);
     setOrder(prev => prev.map(o => {
-      if (o.produk_id === item.produk_id) {
+      if (getOrderItemKey(o) === targetKey) {
         const newQty = o.qty + delta;
         return { ...o, qty: newQty > 0 ? newQty : 1 };
       }
@@ -250,7 +261,8 @@ export default function KasirPage() {
   };
 
   const deleteItem = (item) => {
-    setOrder(prev => prev.filter(o => o.produk_id !== item.produk_id));
+    const targetKey = getOrderItemKey(item);
+    setOrder(prev => prev.filter(o => getOrderItemKey(o) !== targetKey));
   };
 
   const total = order.reduce((sum, item) => sum + (item.qty * item.harga_satuan), 0);
@@ -888,11 +900,23 @@ export default function KasirPage() {
               gap: '0.85rem' 
             }}>
               {filteredProduk.map(p => {
-                const inCart = order.find(item => item.produk_id === p.id);
+                const hasVariants = Array.isArray(p.variants) && p.variants.length > 0;
+                const inCartItems = order.filter(item => item.produk_id === p.id);
+                const inCartQty = inCartItems.reduce((sum, item) => sum + item.qty, 0);
+                const minPrice = hasVariants 
+                  ? Math.min(...p.variants.map(v => Number(v.harga_jual) || 0)) 
+                  : p.harga_jual;
+
                 return (
                   <div 
                     key={p.id}
-                    onClick={() => addToOrder(p)}
+                    onClick={() => {
+                      if (hasVariants) {
+                        setVariantModalProduct(p);
+                      } else {
+                        addToOrder(p);
+                      }
+                    }}
                     className="card"
                     style={{ 
                       padding: 0, 
@@ -900,9 +924,9 @@ export default function KasirPage() {
                       flexDirection: 'column', 
                       justifyContent: 'space-between',
                       cursor: 'pointer',
-                      border: inCart ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                      border: inCartQty > 0 ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
                       position: 'relative',
-                      backgroundColor: inCart ? 'var(--accent-subtle)' : 'var(--surface-panel)',
+                      backgroundColor: inCartQty > 0 ? 'var(--accent-subtle)' : 'var(--surface-panel)',
                       borderRadius: 'var(--radius-lg)',
                       overflow: 'hidden',
                       transition: 'border-color 0.12s ease, transform 0.05s ease, box-shadow 0.12s ease',
@@ -946,7 +970,7 @@ export default function KasirPage() {
                         </div>
                       )}
 
-                      {inCart && (
+                      {inCartQty > 0 && (
                         <span style={{ 
                           position: 'absolute', 
                           top: '0.45rem', 
@@ -962,9 +986,10 @@ export default function KasirPage() {
                           justifyContent: 'center', 
                           fontSize: '0.6875rem', 
                           fontWeight: 700,
-                          boxShadow: 'var(--shadow-sm)'
+                          boxShadow: 'var(--shadow-sm)',
+                          zIndex: 2
                         }}>
-                          {inCart.qty}
+                          {inCartQty}
                         </span>
                       )}
                     </div>
@@ -979,16 +1004,26 @@ export default function KasirPage() {
                       gap: '0.5rem'
                     }}>
                       <div>
-                        <span style={{ 
-                          fontSize: '0.625rem', 
-                          fontWeight: 600, 
-                          color: 'var(--text-secondary)', 
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.04em',
-                          display: 'block'
-                        }}>
-                          {getCategoryName(p.kategori_id)}
-                        </span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.25rem' }}>
+                          <span style={{ 
+                            fontSize: '0.625rem', 
+                            fontWeight: 600, 
+                            color: 'var(--text-secondary)', 
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                            display: 'block',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {getCategoryName(p.kategori_id)}
+                          </span>
+                          {hasVariants && (
+                            <span className="badge-neutral" style={{ fontSize: '0.625rem', padding: '0.08rem 0.35rem', borderRadius: 'var(--radius-sm)', flexShrink: 0 }}>
+                              {p.variants.length} Ukuran
+                            </span>
+                          )}
+                        </div>
                         <h3 style={{ 
                           fontSize: '0.8125rem', 
                           fontWeight: 600, 
@@ -1006,7 +1041,8 @@ export default function KasirPage() {
 
                       <div>
                         <div className="tabular" style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                          Rp {p.harga_jual.toLocaleString('id-ID')}
+                          {hasVariants && <span style={{ fontSize: '0.6875rem', fontWeight: 500, color: 'var(--text-secondary)', marginRight: '3px' }}>Mulai</span>}
+                          Rp {minPrice.toLocaleString('id-ID')}
                         </div>
                         <div style={{ fontSize: '0.6875rem', color: (p.stok ?? 100) > 10 ? 'var(--text-tertiary)' : 'var(--status-warning)', marginTop: '0.15rem' }}>
                           Stok: <span className="tabular">{p.stok ?? 100}</span>
@@ -1080,7 +1116,7 @@ export default function KasirPage() {
               </div>
             ) : (
               order.map(item => (
-                <div key={item.produk_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.65rem 0', borderBottom: '1px solid var(--border-subtle)', gap: '0.65rem' }}>
+                <div key={getOrderItemKey(item)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.65rem 0', borderBottom: '1px solid var(--border-subtle)', gap: '0.65rem' }}>
                   {/* Thumbnail Mini */}
                   <div style={{
                     width: '36px',
@@ -2105,6 +2141,163 @@ export default function KasirPage() {
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL PILIH VARIAN UKURAN KEMASAN (MODEL 1: BOTOL KECIL & BESAR)          */}
+      {/* ========================================================================= */}
+      {variantModalProduct && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(3px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1100,
+          padding: '1rem'
+        }}>
+          <div className="panel" style={{ width: '100%', maxWidth: '420px', padding: 0, overflow: 'hidden' }}>
+            {/* Header Modal */}
+            <div style={{
+              padding: '1rem 1.25rem',
+              borderBottom: '1px solid var(--border-subtle)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: 'var(--surface-sunken)'
+            }}>
+              <div>
+                <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Pilih Ukuran Kemasan
+                </span>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: '0.1rem 0 0 0', color: 'var(--text-primary)' }}>
+                  {variantModalProduct.nama}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVariantModalProduct(null)}
+                style={{ border: 'none', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px' }}
+                aria-label="Tutup"
+              >
+                <IconX size={18} />
+              </button>
+            </div>
+
+            {/* Body: Thumbnail & Varian List */}
+            <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem 0.85rem', backgroundColor: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                <div style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'var(--surface-sunken)',
+                  border: '1px solid var(--border-subtle)',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  {variantModalProduct.image_url ? (
+                    <img
+                      src={variantModalProduct.image_url}
+                      alt={variantModalProduct.nama}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <IconMilk size={20} style={{ color: 'var(--text-tertiary)' }} />
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {variantModalProduct.nama}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                    {getCategoryName(variantModalProduct.kategori_id)} &bull; Stok: <span className="tabular">{variantModalProduct.stok ?? 100}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pilihan Opsi Ukuran */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Opsi Ukuran Tersedia:
+                </span>
+                {(variantModalProduct.variants || []).map((v, vIdx) => {
+                  const existingItem = order.find(item => item.order_item_key === `${variantModalProduct.id}__${v.id}`);
+                  const existingQty = existingItem ? existingItem.qty : 0;
+
+                  return (
+                    <button
+                      key={v.id || vIdx}
+                      type="button"
+                      onClick={() => {
+                        addToOrder(variantModalProduct, v);
+                        setVariantModalProduct(null);
+                      }}
+                      className="btn-secondary"
+                      style={{
+                        padding: '0.75rem 1rem',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        borderRadius: 'var(--radius-md)',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'all 0.12s ease',
+                        border: existingQty > 0 ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                        backgroundColor: existingQty > 0 ? 'var(--accent-subtle)' : 'var(--surface-panel)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <div style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: 'var(--radius-sm)',
+                          backgroundColor: 'var(--surface-sunken)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--terracotta)'
+                        }}>
+                          <IconMilk size={15} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {v.nama}
+                          </div>
+                          {existingQty > 0 && (
+                            <span style={{ fontSize: '0.6875rem', color: 'var(--accent-primary)', fontWeight: 600 }}>
+                              {existingQty} di keranjang
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="tabular" style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                        Rp {Number(v.harga_jual).toLocaleString('id-ID')}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Tombol Tutup / Batal */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.25rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setVariantModalProduct(null)}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.45rem 0.85rem', fontSize: '0.78125rem' }}
+                >
+                  BATAL
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

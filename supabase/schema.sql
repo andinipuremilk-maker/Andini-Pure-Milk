@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS public.produk (
     harga_modal BIGINT NOT NULL DEFAULT 0,
     stok INT NOT NULL DEFAULT 100,
     image_url TEXT,
+    variants JSONB DEFAULT '[]'::jsonb,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
