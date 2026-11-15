@@ -10,7 +10,9 @@ import {
   IconTrash,
   IconX,
   IconAlertCircle,
-  IconRefresh
+  IconRefresh,
+  IconImage,
+  IconMilk
 } from '../../../components/ui/icons';
 
 export default function ProdukPage() {
@@ -82,8 +84,8 @@ export default function ProdukPage() {
     setEditItem(item);
     setFormData(
       item 
-        ? { ...item } 
-        : { nama: '', sku: '', harga_jual: '', harga_modal: '', stok: 100, kategori_id: kategori[0]?.id || '' }
+        ? { ...item, image_url: item.image_url || '' } 
+        : { nama: '', sku: '', harga_jual: '', harga_modal: '', stok: 100, kategori_id: kategori[0]?.id || '', image_url: '' }
     );
     setModalVisible(true);
   };
@@ -356,12 +358,40 @@ export default function ProdukPage() {
                     
                     {/* Nama & Kategori */}
                     <td style={{ padding: '0.75rem 0.85rem', verticalAlign: 'middle' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{item.nama}</div>
-                      {catName && (
-                        <span className="badge-neutral" style={{ fontSize: '0.65rem', marginTop: '0.2rem', padding: '0.05rem 0.4rem' }}>
-                          {catName}
-                        </span>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <div style={{ 
+                          width: '36px', 
+                          height: '36px', 
+                          borderRadius: 'var(--radius-sm)', 
+                          backgroundColor: 'var(--surface-subtle)', 
+                          border: '1px solid var(--border-subtle)', 
+                          overflow: 'hidden', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          {item.image_url ? (
+                            <img 
+                              src={item.image_url} 
+                              alt={item.nama} 
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              loading="lazy"
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          ) : (
+                            <IconMilk size={16} style={{ color: 'var(--text-tertiary)' }} />
+                          )}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{item.nama}</div>
+                          {catName && (
+                            <span className="badge-neutral" style={{ fontSize: '0.65rem', marginTop: '0.15rem', padding: '0.05rem 0.4rem' }}>
+                              {catName}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </td>
 
                     {/* SKU */}
@@ -526,6 +556,68 @@ export default function ProdukPage() {
                   <option value="">Pilih Kategori...</option>
                   {kategori.map(k => <option key={k.id} value={k.id}>{k.nama}</option>)}
                 </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Foto Produk (Khusus Admin)</label>
+                {formData.image_url ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.55rem', backgroundColor: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                    <img 
+                      src={formData.image_url} 
+                      alt="Preview Foto" 
+                      style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        Foto Terpasang
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => setFormData({ ...formData, image_url: '' })}
+                        style={{ fontSize: '0.6875rem', color: 'var(--status-danger)', fontWeight: 600, marginTop: '0.15rem', cursor: 'pointer' }}
+                      >
+                        Hapus / Ganti Foto
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="Tempel tautan URL gambar (https://...)..." 
+                      value={formData.image_url || ''} 
+                      onChange={e => setFormData({ ...formData, image_url: e.target.value })} 
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <label className="btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem', cursor: 'pointer' }}>
+                        <IconImage size={13} />
+                        <span>Pilih File Gambar</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          style={{ display: 'none' }} 
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              if (file.size > 2 * 1024 * 1024) {
+                                alert('Ukuran foto maksimal 2MB.');
+                                return;
+                              }
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                setFormData({ ...formData, image_url: event.target.result });
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }} 
+                        />
+                      </label>
+                      <span style={{ fontSize: '0.6875rem', color: 'var(--text-tertiary)' }}>Maks. 2MB atau gunakan URL</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem', alignItems: 'center' }}>

@@ -47,6 +47,7 @@ export async function POST(req) {
         harga_modal: Number(data.harga_modal) || 0,
         stok: Number(data.stok) || 0,
         kategori_id: data.kategori_id || null,
+        image_url: data.image_url || null,
         is_active: true
       };
 

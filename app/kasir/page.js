@@ -235,7 +235,8 @@ export default function KasirPage() {
         produk_id: product.id, 
         nama: product.nama, 
         harga_satuan: product.harga_jual, 
-        qty: 1 
+        qty: 1,
+        image_url: product.image_url || null
       }];
     });
   };
@@ -876,7 +877,7 @@ export default function KasirPage() {
           <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', paddingBottom: '5rem' }}>
             <div style={{ 
               display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', 
+              gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', 
               gap: '0.85rem' 
             }}>
               {filteredProduk.map(p => {
@@ -887,7 +888,7 @@ export default function KasirPage() {
                     onClick={() => addToOrder(p)}
                     className="card"
                     style={{ 
-                      padding: '1rem', 
+                      padding: 0, 
                       display: 'flex', 
                       flexDirection: 'column', 
                       justifyContent: 'space-between',
@@ -895,51 +896,114 @@ export default function KasirPage() {
                       border: inCart ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
                       position: 'relative',
                       backgroundColor: inCart ? 'var(--accent-subtle)' : 'var(--surface-panel)',
-                      transition: 'border-color 0.12s ease, transform 0.05s ease',
-                      gap: '0.85rem'
+                      borderRadius: 'var(--radius-lg)',
+                      overflow: 'hidden',
+                      transition: 'border-color 0.12s ease, transform 0.05s ease, box-shadow 0.12s ease',
+                      boxShadow: 'var(--shadow-xs)'
                     }}
                   >
-                    {inCart && (
-                      <span style={{ 
-                        position: 'absolute', 
-                        top: '0.5rem', 
-                        right: '0.5rem', 
-                        backgroundColor: 'var(--accent-primary)', 
-                        color: 'var(--text-inverse)', 
-                        borderRadius: 'var(--radius-full)', 
-                        width: '20px', 
-                        height: '20px', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        fontSize: '0.6875rem', 
-                        fontWeight: 700 
-                      }}>
-                        {inCart.qty}
-                      </span>
-                    )}
-                    <div>
-                      <span style={{ 
-                        fontSize: '0.65rem', 
-                        fontWeight: 600, 
-                        color: 'var(--text-secondary)', 
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.04em',
-                        display: 'block'
-                      }}>
-                        {getCategoryName(p.kategori_id)}
-                      </span>
-                      <h3 style={{ fontSize: '0.875rem', fontWeight: 600, margin: '0.2rem 0 0 0', lineHeight: 1.35, color: 'var(--text-primary)' }}>
-                        {p.nama}
-                      </h3>
+                    {/* Foto Produk */}
+                    <div style={{
+                      position: 'relative',
+                      width: '100%',
+                      height: '115px',
+                      backgroundColor: 'var(--surface-subtle)',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      {p.image_url ? (
+                        <img 
+                          src={p.image_url} 
+                          alt={p.nama} 
+                          loading="lazy"
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            display: 'block'
+                          }}
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--text-tertiary)'
+                        }}>
+                          <IconMilk size={26} />
+                        </div>
+                      )}
+
+                      {inCart && (
+                        <span style={{ 
+                          position: 'absolute', 
+                          top: '0.45rem', 
+                          right: '0.45rem', 
+                          backgroundColor: 'var(--accent-primary)', 
+                          color: 'var(--text-inverse)', 
+                          borderRadius: 'var(--radius-full)', 
+                          minWidth: '22px', 
+                          height: '22px', 
+                          padding: '0 0.35rem',
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center', 
+                          fontSize: '0.6875rem', 
+                          fontWeight: 700,
+                          boxShadow: 'var(--shadow-sm)'
+                        }}>
+                          {inCart.qty}
+                        </span>
+                      )}
                     </div>
 
-                    <div>
-                      <div className="tabular" style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                        Rp {p.harga_jual.toLocaleString('id-ID')}
+                    {/* Informasi Produk */}
+                    <div style={{ 
+                      padding: '0.75rem', 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      justifyContent: 'space-between',
+                      flex: 1,
+                      gap: '0.5rem'
+                    }}>
+                      <div>
+                        <span style={{ 
+                          fontSize: '0.625rem', 
+                          fontWeight: 600, 
+                          color: 'var(--text-secondary)', 
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          display: 'block'
+                        }}>
+                          {getCategoryName(p.kategori_id)}
+                        </span>
+                        <h3 style={{ 
+                          fontSize: '0.8125rem', 
+                          fontWeight: 600, 
+                          margin: '0.15rem 0 0 0', 
+                          lineHeight: 1.35, 
+                          color: 'var(--text-primary)',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden'
+                        }}>
+                          {p.nama}
+                        </h3>
                       </div>
-                      <div style={{ fontSize: '0.6875rem', color: (p.stok ?? 100) > 10 ? 'var(--text-tertiary)' : 'var(--status-warning)', marginTop: '0.2rem' }}>
-                        Stok: <span className="tabular">{p.stok ?? 100}</span>
+
+                      <div>
+                        <div className="tabular" style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                          Rp {p.harga_jual.toLocaleString('id-ID')}
+                        </div>
+                        <div style={{ fontSize: '0.6875rem', color: (p.stok ?? 100) > 10 ? 'var(--text-tertiary)' : 'var(--status-warning)', marginTop: '0.15rem' }}>
+                          Stok: <span className="tabular">{p.stok ?? 100}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1009,14 +1073,40 @@ export default function KasirPage() {
               </div>
             ) : (
               order.map(item => (
-                <div key={item.produk_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
-                  <div style={{ flex: 1, paddingRight: '0.75rem' }}>
-                    <h4 style={{ fontSize: '0.8125rem', fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>{item.nama}</h4>
-                    <p className="tabular" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0 0' }}>
+                <div key={item.produk_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.65rem 0', borderBottom: '1px solid var(--border-subtle)', gap: '0.65rem' }}>
+                  {/* Thumbnail Mini */}
+                  <div style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: 'var(--surface-subtle)',
+                    border: '1px solid var(--border-subtle)',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
+                    {item.image_url ? (
+                      <img 
+                        src={item.image_url} 
+                        alt={item.nama}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        loading="lazy"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <IconMilk size={16} style={{ color: 'var(--text-tertiary)' }} />
+                    )}
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: 0, paddingRight: '0.35rem' }}>
+                    <h4 style={{ fontSize: '0.8125rem', fontWeight: 600, margin: 0, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.nama}</h4>
+                    <p className="tabular" style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.1rem 0 0 0' }}>
                       Rp {item.harga_satuan.toLocaleString('id-ID')} &times; {item.qty} = <strong style={{ color: 'var(--text-primary)' }}>Rp {(item.qty * item.harga_satuan).toLocaleString('id-ID')}</strong>
                     </p>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
                     <button 
                       onClick={() => updateQty(item, -1)} 
                       style={{ width: '28px', height: '28px', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', backgroundColor: 'var(--surface-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
