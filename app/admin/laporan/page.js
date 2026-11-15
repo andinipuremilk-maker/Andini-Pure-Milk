@@ -3,13 +3,24 @@ import { useState, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { useResponsivePagination } from '../../../lib/useResponsivePagination';
+import {
+  IconDownload,
+  IconCalendar,
+  IconRefresh,
+  IconUser,
+  IconX,
+  IconPackage,
+  IconBanknote,
+  IconQrCode,
+  IconCreditCard
+} from '../../../components/ui/icons';
 
-function StatCard({ title, value, subtitle, highlightColor, borderColor = 'var(--color-chocolate)' }) {
+function StatCard({ title, value, subtitle, highlightColor }) {
   return (
-    <div className="card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', justifyContent: 'center', borderLeft: `4px solid ${borderColor}`, backgroundColor: '#ffffff' }}>
-      <h3 style={{ fontSize: '0.6875rem', fontWeight: 800, color: 'var(--color-text-secondary)', marginBottom: '0.35rem', letterSpacing: '0.5px', textTransform: 'uppercase' }}>{title}</h3>
-      <p style={{ fontSize: '1.25rem', fontWeight: 900, color: highlightColor || 'inherit', margin: 0, overflowWrap: 'break-word' }}>{value}</p>
-      {subtitle && <p style={{ fontSize: '0.6875rem', color: 'var(--color-text-secondary)', marginTop: '0.2rem' }}>{subtitle}</p>}
+    <div className="panel" style={{ padding: '1rem 1.15rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+      <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{title}</span>
+      <p className="tabular" style={{ fontSize: '1.25rem', fontWeight: 800, whiteSpace: 'nowrap', margin: 0, color: highlightColor || 'var(--text-primary)' }}>{value}</p>
+      {subtitle && <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem', margin: 0, whiteSpace: 'nowrap' }}>{subtitle}</p>}
     </div>
   );
 }
@@ -17,7 +28,7 @@ function StatCard({ title, value, subtitle, highlightColor, borderColor = 'var(-
 export default function LaporanPage() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [rangeType, setRangeType] = useState('month'); // 'today' | 'week' | 'month' | 'custom'
+  const [rangeType, setRangeType] = useState('month'); // 'today' | 'week' | 'month' | 'year' | 'custom'
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
@@ -152,125 +163,146 @@ export default function LaporanPage() {
     <div className="admin-page-container">
       
       {/* Header Bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '0.5px', margin: 0 }}>LAPORAN KEUANGAN</h1>
-          <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', margin: '0.2rem 0 0 0', fontWeight: 600 }}>Rekapitulasi omset, laba rugi, dan transaksi</p>
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>Laporan Keuangan</h1>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>Rekapitulasi omset penjualan, beban operasional, dan laba bersih</p>
         </div>
         <button 
-          className="btn-chocolate" 
+          type="button"
+          className="btn-primary" 
           onClick={handleOpenPDFPreview} 
-          style={{ padding: '0.65rem 1.15rem', fontSize: '0.8125rem' }}
+          style={{ padding: '0.55rem 1rem', fontSize: '0.8125rem' }}
         >
-          ⬇ EXPORT PDF
+          <IconDownload size={15} />
+          <span>Ekspor Laporan PDF</span>
         </button>
       </div>
 
       {/* Date Filter Card */}
-      <div className="card" style={{ marginBottom: '1.5rem', padding: '1rem 1.25rem' }}>
+      <div className="card" style={{ marginBottom: '1.25rem', padding: '1rem' }}>
         <div className="responsive-filter-bar">
           
           <div style={{ flex: 1, minWidth: '180px' }}>
-            <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, marginBottom: '0.35rem', letterSpacing: '0.5px' }}>PERIODE LAPORAN</label>
+            <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Periode Laporan</label>
             <select 
               className="input-field"
               value={rangeType}
               onChange={e => setRangeType(e.target.value)}
-              style={{ padding: '0.65rem 0.85rem', fontSize: '0.875rem' }}
+              style={{ fontSize: '0.8125rem' }}
             >
-              <option value="today">HARI INI</option>
-              <option value="week">7 HARI TERAKHIR</option>
-              <option value="month">BULAN INI</option>
-              <option value="year">TAHUN INI</option>
-              <option value="custom">KUSTOM TANGGAL</option>
+              <option value="today">Hari Ini</option>
+              <option value="week">7 Hari Terakhir</option>
+              <option value="month">Bulan Ini</option>
+              <option value="year">Tahun Ini</option>
+              <option value="custom">Kustom Tanggal</option>
             </select>
           </div>
 
           {rangeType === 'custom' && (
             <>
               <div style={{ flex: 1, minWidth: '140px' }}>
-                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, marginBottom: '0.35rem', letterSpacing: '0.5px' }}>DARI TANGGAL</label>
+                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Dari Tanggal</label>
                 <input 
                   type="date" 
                   className="input-field" 
                   value={customStart} 
                   onChange={e => setCustomStart(e.target.value)} 
-                  style={{ padding: '0.65rem 0.85rem', fontSize: '0.875rem' }}
+                  style={{ fontSize: '0.8125rem' }}
                 />
               </div>
               <div style={{ flex: 1, minWidth: '140px' }}>
-                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, marginBottom: '0.35rem', letterSpacing: '0.5px' }}>SAMPAI TANGGAL</label>
+                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Sampai Tanggal</label>
                 <input 
                   type="date" 
                   className="input-field" 
                   value={customEnd} 
                   onChange={e => setCustomEnd(e.target.value)} 
-                  style={{ padding: '0.65rem 0.85rem', fontSize: '0.875rem' }}
+                  style={{ fontSize: '0.8125rem' }}
                 />
               </div>
             </>
           )}
 
           {rangeType !== 'month' && (
-            <button 
-              type="button" 
-              className="btn-secondary" 
-              onClick={() => {
-                setRangeType('month');
-                setCustomStart('');
-                setCustomEnd('');
-              }}
-              style={{ padding: '0.65rem 1rem', fontSize: '0.75rem' }}
-            >
-              RESET
-            </button>
+            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+              <button 
+                type="button" 
+                className="btn-secondary" 
+                onClick={() => {
+                  setRangeType('month');
+                  setCustomStart('');
+                  setCustomEnd('');
+                }}
+                style={{ padding: '0.55rem 0.95rem', fontSize: '0.75rem' }}
+              >
+                <IconRefresh size={13} />
+                <span>Reset Periode</span>
+              </button>
+            </div>
           )}
 
         </div>
       </div>
 
       {loading || !stats ? (
-        <div style={{ padding: '2rem', textAlign: 'center', fontWeight: 700 }}>Memuat Laporan...</div>
+        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Memuat laporan keuangan...</div>
       ) : (
-        <div id="laporan-content" style={{ padding: '0.5rem 0', backgroundColor: 'var(--color-bg-light)' }}>
+        <div id="laporan-content" style={{ padding: '0.5rem 0', backgroundColor: 'transparent' }}>
           
           {/* Executive Metrics Summary */}
-          <section style={{ marginBottom: '2rem' }}>
-            <h2 style={{ fontSize: '0.8125rem', fontWeight: 800, color: 'var(--color-text-secondary)', marginBottom: '0.75rem', letterSpacing: '1px' }}>RINGKASAN EKSEKUTIF KEUANGAN</h2>
+          <section style={{ marginBottom: '1.5rem' }}>
+            <h2 style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.65rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Ringkasan Eksekutif Keuangan</h2>
             <div className="responsive-stats-grid">
-              <StatCard title="TOTAL PENDAPATAN" value={`Rp ${stats.totalRevenue.toLocaleString('id-ID')}`} />
-              <StatCard title="PENGELUARAN OPERASIONAL" value={`Rp ${(stats.totalExpense || 0).toLocaleString('id-ID')}`} highlightColor="var(--color-error)" />
-              <StatCard title="LABA BERSIH (NET)" value={`Rp ${(stats.totalNetProfit || 0).toLocaleString('id-ID')}`} highlightColor={(stats.totalNetProfit || 0) >= 0 ? 'var(--color-text-primary)' : 'var(--color-error)'} />
-              <StatCard title="MARGIN LABA BERSIH" value={`${netMargin}%`} subtitle={`Dari ${stats.totalCount} transaksi`} />
+              <StatCard 
+                title="Total Pendapatan" 
+                value={`Rp ${stats.totalRevenue.toLocaleString('id-ID')}`} 
+                highlightColor="var(--terracotta)" 
+              />
+              <StatCard 
+                title="Pengeluaran Operasional" 
+                value={`Rp ${(stats.totalExpense || 0).toLocaleString('id-ID')}`} 
+                highlightColor="var(--status-danger)" 
+              />
+              <StatCard 
+                title="Laba Bersih (Net)" 
+                value={`Rp ${(stats.totalNetProfit || 0).toLocaleString('id-ID')}`} 
+                highlightColor={(stats.totalNetProfit || 0) >= 0 ? 'var(--status-success)' : 'var(--status-danger)'} 
+              />
+              <StatCard 
+                title="Margin Laba Bersih" 
+                value={`${netMargin}%`} 
+                subtitle={`Dari ${stats.totalCount} transaksi`} 
+              />
             </div>
           </section>
 
           {/* Side-by-Side Breakdown Tables */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
             
             {/* Pendapatan per Kategori */}
             <div>
-              <h2 style={{ fontSize: '0.875rem', fontWeight: 800, color: 'var(--color-text-secondary)', marginBottom: '0.75rem', letterSpacing: '1px' }}>PENDAPATAN PER KATEGORI PRODUK</h2>
-              <div className="card" style={{ height: '100%' }}>
+              <h2 style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.65rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Pendapatan per Kategori Produk</h2>
+              <div className="card" style={{ height: '100%', padding: '1rem' }}>
                 {stats.categoryBreakdown.length === 0 ? (
-                  <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>Tidak ada transaksi penjualan.</p>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem', margin: 0 }}>Tidak ada transaksi penjualan pada periode ini.</p>
                 ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8125rem' }}>
                     <thead>
-                      <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                        <th style={{ padding: '0.75rem 0', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.75rem', letterSpacing: '1px' }}>KATEGORI</th>
-                        <th style={{ padding: '0.75rem 0', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.75rem', letterSpacing: '1px', textAlign: 'right' }}>PENDAPATAN</th>
-                        <th style={{ padding: '0.75rem 0', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.75rem', letterSpacing: '1px', textAlign: 'right' }}>PANGSA</th>
+                      <tr style={{ borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'var(--surface-subtle)' }}>
+                        <th style={{ padding: '0.6rem 0.75rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em' }}>KATEGORI</th>
+                        <th style={{ padding: '0.6rem 0.75rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em', textAlign: 'right' }}>PENDAPATAN</th>
+                        <th style={{ padding: '0.6rem 0.75rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em', textAlign: 'right' }}>PANGSA</th>
                       </tr>
                     </thead>
                     <tbody>
                       {stats.categoryBreakdown.map((item, i) => {
                         const pct = stats.totalRevenue > 0 ? Math.round((item.revenue / stats.totalRevenue) * 100) : 0;
                         return (
-                          <tr key={i} style={{ borderBottom: i < stats.categoryBreakdown.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
-                            <td style={{ padding: '0.75rem 0', fontWeight: 700, fontSize: '0.8125rem' }}>{item.kategori}</td>
-                            <td style={{ padding: '0.75rem 0', textAlign: 'right', fontWeight: 700, fontSize: '0.8125rem' }}>Rp {item.revenue.toLocaleString('id-ID')}</td>
-                            <td style={{ padding: '0.75rem 0', textAlign: 'right', fontWeight: 800, fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>{pct}%</td>
+                          <tr key={i} style={{ borderBottom: i < stats.categoryBreakdown.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                            <td style={{ padding: '0.65rem 0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>{item.kategori}</td>
+                            <td className="tabular" style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 600, color: 'var(--text-primary)' }}>Rp {item.revenue.toLocaleString('id-ID')}</td>
+                            <td className="tabular" style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 600, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{pct}%</td>
                           </tr>
                         );
                       })}
@@ -282,27 +314,27 @@ export default function LaporanPage() {
 
             {/* Pengeluaran per Kategori */}
             <div>
-              <h2 style={{ fontSize: '0.875rem', fontWeight: 800, color: 'var(--color-text-secondary)', marginBottom: '0.75rem', letterSpacing: '1px' }}>PENGELUARAN PER KATEGORI OPERASIONAL</h2>
-              <div className="card" style={{ height: '100%' }}>
+              <h2 style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.65rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Pengeluaran per Kategori Operasional</h2>
+              <div className="card" style={{ height: '100%', padding: '1rem' }}>
                 {!stats.expenseCategoryBreakdown || stats.expenseCategoryBreakdown.length === 0 ? (
-                  <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem', margin: 0 }}>Tidak ada pengeluaran pada periode ini.</p>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem', margin: 0 }}>Tidak ada pengeluaran pada periode ini.</p>
                 ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8125rem' }}>
                     <thead>
-                      <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                        <th style={{ padding: '0.75rem 0', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.75rem', letterSpacing: '1px' }}>KATEGORI</th>
-                        <th style={{ padding: '0.75rem 0', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.75rem', letterSpacing: '1px', textAlign: 'right' }}>NOMINAL</th>
-                        <th style={{ padding: '0.75rem 0', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.75rem', letterSpacing: '1px', textAlign: 'right' }}>PANGSA</th>
+                      <tr style={{ borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'var(--surface-subtle)' }}>
+                        <th style={{ padding: '0.6rem 0.75rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em' }}>KATEGORI</th>
+                        <th style={{ padding: '0.6rem 0.75rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em', textAlign: 'right' }}>NOMINAL</th>
+                        <th style={{ padding: '0.6rem 0.75rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em', textAlign: 'right' }}>PANGSA</th>
                       </tr>
                     </thead>
                     <tbody>
                       {stats.expenseCategoryBreakdown.map((item, i) => {
                         const pct = stats.totalExpense > 0 ? Math.round((item.nominal / stats.totalExpense) * 100) : 0;
                         return (
-                          <tr key={i} style={{ borderBottom: i < stats.expenseCategoryBreakdown.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
-                            <td style={{ padding: '0.75rem 0', fontWeight: 700, fontSize: '0.8125rem' }}>{item.kategori}</td>
-                            <td style={{ padding: '0.75rem 0', textAlign: 'right', fontWeight: 800, fontSize: '0.8125rem', color: 'var(--color-error)' }}>- Rp {item.nominal.toLocaleString('id-ID')}</td>
-                            <td style={{ padding: '0.75rem 0', textAlign: 'right', fontWeight: 800, fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>{pct}%</td>
+                          <tr key={i} style={{ borderBottom: i < stats.expenseCategoryBreakdown.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                            <td style={{ padding: '0.65rem 0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>{item.kategori}</td>
+                            <td className="tabular" style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 700, color: 'var(--status-danger)' }}>- Rp {item.nominal.toLocaleString('id-ID')}</td>
+                            <td className="tabular" style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 600, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{pct}%</td>
                           </tr>
                         );
                       })}
@@ -315,28 +347,32 @@ export default function LaporanPage() {
           </div>
 
           {/* Top 5 Best Sellers Section */}
-          <section style={{ marginBottom: '2.5rem' }}>
-            <h2 style={{ fontSize: '0.875rem', fontWeight: 800, color: 'var(--color-text-secondary)', marginBottom: '0.75rem', letterSpacing: '1px' }}>PRODUK TERLARIS (TOP 5 BEST SELLERS)</h2>
-            <div className="card">
+          <section style={{ marginBottom: '1.5rem' }}>
+            <h2 style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.65rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Produk Terlaris (Top 5 Best Sellers)</h2>
+            <div className="card" style={{ padding: '1rem' }}>
               {topProductsList.length === 0 ? (
-                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem', margin: 0 }}>Belum ada data penjualan produk.</p>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem', margin: 0 }}>Belum ada data penjualan produk pada periode ini.</p>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8125rem' }}>
                   <thead>
-                    <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                      <th style={{ padding: '0.75rem 0', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.75rem', letterSpacing: '1px', width: '50px' }}>PERINGKAT</th>
-                      <th style={{ padding: '0.75rem 0', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.75rem', letterSpacing: '1px' }}>NAMA PRODUK</th>
-                      <th style={{ padding: '0.75rem 0', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.75rem', letterSpacing: '1px', textAlign: 'center' }}>TOTAL TERJUAL</th>
-                      <th style={{ padding: '0.75rem 0', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.75rem', letterSpacing: '1px', textAlign: 'right' }}>TOTAL OMZET</th>
+                    <tr style={{ borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'var(--surface-subtle)' }}>
+                      <th style={{ padding: '0.6rem 0.75rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em', width: '60px' }}>PERINGKAT</th>
+                      <th style={{ padding: '0.6rem 0.75rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em' }}>NAMA PRODUK</th>
+                      <th style={{ padding: '0.6rem 0.75rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em', textAlign: 'center' }}>TOTAL TERJUAL</th>
+                      <th style={{ padding: '0.6rem 0.75rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em', textAlign: 'right' }}>TOTAL OMZET</th>
                     </tr>
                   </thead>
                   <tbody>
                     {topProductsList.map((item, i) => (
-                      <tr key={i} style={{ borderBottom: i < topProductsList.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
-                        <td style={{ padding: '0.75rem 0', fontWeight: 800, fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>#{i + 1}</td>
-                        <td style={{ padding: '0.75rem 0', fontWeight: 700, fontSize: '0.875rem' }}>{item.nama}</td>
-                        <td style={{ padding: '0.75rem 0', textAlign: 'center', fontWeight: 800, fontSize: '0.875rem' }}>{item.qty} pcs</td>
-                        <td style={{ padding: '0.75rem 0', textAlign: 'right', fontWeight: 800, fontSize: '0.875rem' }}>Rp {item.revenue.toLocaleString('id-ID')}</td>
+                      <tr key={i} style={{ borderBottom: i < topProductsList.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                        <td style={{ padding: '0.65rem 0.75rem', verticalAlign: 'middle' }}>
+                          <span className={i === 0 ? 'badge-chocolate' : 'badge-neutral'} style={{ fontSize: '0.6875rem', padding: '0.1rem 0.45rem', fontWeight: 700 }}>
+                            #{i + 1}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.65rem 0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>{item.nama}</td>
+                        <td className="tabular" style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-primary)' }}>{item.qty} pcs</td>
+                        <td className="tabular" style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>Rp {item.revenue.toLocaleString('id-ID')}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -347,20 +383,20 @@ export default function LaporanPage() {
 
           {/* Compact Log Penjualan Summary */}
           <section>
-            <h2 style={{ fontSize: '0.8125rem', fontWeight: 800, color: 'var(--color-text-secondary)', marginBottom: '0.75rem', letterSpacing: '1px' }}>RINGKASAN LOG TRANSAKSI PENJUALAN</h2>
+            <h2 style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.65rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Ringkasan Log Transaksi Penjualan</h2>
             <div className="table-responsive">
               {stats.transactionsList && stats.transactionsList.length === 0 ? (
-                <p style={{ color: 'var(--color-text-secondary)', margin: '1rem', fontSize: '0.875rem' }}>Tidak ada transaksi.</p>
+                <div className="card" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>Tidak ada transaksi pada periode ini.</div>
               ) : (
-                <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8125rem' }}>
                   <thead>
-                    <tr style={{ borderBottom: '2px solid var(--color-border)', backgroundColor: 'var(--color-bg-dark)' }}>
-                      <th style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.6875rem', letterSpacing: '1px', whiteSpace: 'nowrap' }}>WAKTU & TANGGAL</th>
-                      <th style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.6875rem', letterSpacing: '1px', whiteSpace: 'nowrap' }}>NO. TRX</th>
-                      <th style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.6875rem', letterSpacing: '1px', whiteSpace: 'nowrap' }}>KASIR / PJ</th>
-                      <th style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.6875rem', letterSpacing: '1px' }}>RINGKASAN PRODUK</th>
-                      <th style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.6875rem', letterSpacing: '1px', whiteSpace: 'nowrap' }}>METODE</th>
-                      <th style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--color-text-secondary)', fontSize: '0.6875rem', letterSpacing: '1px', textAlign: 'right', whiteSpace: 'nowrap' }}>TOTAL SETOR</th>
+                    <tr style={{ borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'var(--surface-subtle)' }}>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>WAKTU & TANGGAL</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>NO. TRX</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>KASIR / PJ</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em' }}>RINGKASAN PRODUK</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>METODE</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em', textAlign: 'right', whiteSpace: 'nowrap' }}>TOTAL SETOR</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -376,29 +412,44 @@ export default function LaporanPage() {
                       }
 
                       return (
-                        <tr key={i} style={{ borderBottom: i < ITEMS_PER_PAGE - 1 ? '1px solid var(--color-border)' : 'none' }}>
-                          <td style={{ padding: '0.75rem 1rem', color: 'var(--color-text-secondary)', fontSize: '0.8125rem', whiteSpace: 'nowrap' }}>{formattedDate}</td>
-                          <td style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.8125rem', whiteSpace: 'nowrap' }}>{item.no_transaksi}</td>
-                          <td style={{ padding: '0.75rem 1rem', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border-subtle)', transition: 'background-color 0.15s ease' }}>
+                          <td className="tabular" style={{ padding: '0.75rem 0.85rem', color: 'var(--text-secondary)', fontSize: '0.8125rem', whiteSpace: 'nowrap' }}>{formattedDate}</td>
+                          <td style={{ padding: '0.75rem 0.85rem', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                            <span className="font-mono" style={{ 
+                              fontWeight: 600, 
+                              fontSize: '0.75rem', 
+                              backgroundColor: 'var(--surface-subtle)', 
+                              padding: '0.2rem 0.45rem', 
+                              borderRadius: 'var(--radius-sm)', 
+                              border: '1px solid var(--border-subtle)',
+                              color: 'var(--text-primary)'
+                            }}>
+                              {item.no_transaksi}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.75rem 0.85rem', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
                             <span style={{ 
                               display: 'inline-flex', 
                               alignItems: 'center', 
                               gap: '0.35rem', 
-                              backgroundColor: 'rgba(124, 74, 45, 0.08)', 
-                              color: 'var(--color-chocolate)', 
-                              padding: '0.2rem 0.5rem', 
-                              borderRadius: '4px', 
-                              fontWeight: 700, 
-                              fontSize: '0.75rem',
-                              border: '1px solid rgba(124, 74, 45, 0.2)'
+                              color: 'var(--text-secondary)',
+                              fontWeight: 500,
+                              fontSize: '0.8125rem'
                             }}>
-                              <span>👤</span>
+                              <IconUser size={13} style={{ color: 'var(--text-tertiary)' }} />
                               <span>{item.kasir || 'Kasir Gerai'}</span>
                             </span>
                           </td>
-                          <td style={{ padding: '0.75rem 1rem', fontSize: '0.8125rem', fontWeight: 600 }}>{produkSummary}</td>
-                          <td style={{ padding: '0.75rem 1rem', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 800, whiteSpace: 'nowrap' }}>{item.metode_bayar || 'TUNAI'}</td>
-                          <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 800, fontSize: '0.875rem', whiteSpace: 'nowrap' }}>Rp {item.total.toLocaleString('id-ID')}</td>
+                          <td style={{ padding: '0.75rem 0.85rem', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-primary)' }}>{produkSummary}</td>
+                          <td style={{ padding: '0.75rem 0.85rem', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                            <span className="badge-neutral" style={{ fontSize: '0.65rem', textTransform: 'uppercase', padding: '0.1rem 0.4rem' }}>
+                              {item.metode_bayar === 'tunai' && <IconBanknote size={11} style={{ marginRight: '0.2rem' }} />}
+                              {item.metode_bayar === 'qris' && <IconQrCode size={11} style={{ marginRight: '0.2rem' }} />}
+                              {item.metode_bayar === 'transfer' && <IconCreditCard size={11} style={{ marginRight: '0.2rem' }} />}
+                              {item.metode_bayar || 'TUNAI'}
+                            </span>
+                          </td>
+                          <td className="tabular" style={{ padding: '0.75rem 0.85rem', textAlign: 'right', fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>Rp {item.total.toLocaleString('id-ID')}</td>
                         </tr>
                       );
                     })}
@@ -409,25 +460,27 @@ export default function LaporanPage() {
 
             {/* Pagination Controls */}
             {stats.transactionsList && stats.transactionsList.length > ITEMS_PER_PAGE && (
-              <div className="responsive-pagination" style={{ marginTop: '1.5rem' }}>
+              <div className="responsive-pagination" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
                 <button 
+                  type="button"
                   onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))} 
                   disabled={currentPage === 0}
                   className="btn-secondary"
-                  style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}
+                  style={{ padding: '0.45rem 0.85rem', fontSize: '0.8125rem' }}
                 >
-                  &larr; SEBELUMNYA
+                  &larr; Sebelumnya
                 </button>
-                <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-text-secondary)', textAlign: 'center' }}>
+                <span className="tabular" style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'center' }}>
                   Menampilkan {stats.transactionsList.length === 0 ? 0 : currentPage * ITEMS_PER_PAGE + 1} - {Math.min((currentPage + 1) * ITEMS_PER_PAGE, stats.transactionsList.length)} dari {stats.transactionsList.length} data &bull; Halaman {currentPage + 1} dari {Math.ceil(stats.transactionsList.length / ITEMS_PER_PAGE)}
                 </span>
                 <button 
+                  type="button"
                   onClick={() => setCurrentPage(prev => Math.min(Math.ceil(stats.transactionsList.length / ITEMS_PER_PAGE) - 1, prev + 1))} 
                   disabled={currentPage >= Math.ceil(stats.transactionsList.length / ITEMS_PER_PAGE) - 1}
                   className="btn-secondary"
-                  style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}
+                  style={{ padding: '0.45rem 0.85rem', fontSize: '0.8125rem' }}
                 >
-                  SELANJUTNYA &rarr;
+                  Selanjutnya &rarr;
                 </button>
               </div>
             )}
@@ -439,41 +492,46 @@ export default function LaporanPage() {
       {/* PDF Preview Modal */}
       {pdfPreviewModal && (
         <div className="modal-overlay" style={{ zIndex: 1200 }}>
-          <div className="modal-content" style={{ maxWidth: '850px', width: '90%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.75rem' }}>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '1px', margin: 0 }}>PREVIEW LAPORAN PDF</h2>
+          <div className="modal-content" style={{ maxWidth: '850px', width: '92%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0, letterSpacing: '-0.01em', color: 'var(--text-primary)' }}>Preview Laporan PDF</h2>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>Pratinjau visual sebelum mencetak atau menyimpan dokumen</p>
+              </div>
               <button 
+                type="button"
                 onClick={() => setPdfPreviewModal(false)}
-                style={{ fontSize: '1.25rem', fontWeight: 800, cursor: 'pointer', background: 'none', border: 'none' }}
+                style={{ color: 'var(--text-secondary)', padding: '0.35rem', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center' }}
+                aria-label="Tutup modal"
               >
-                &times;
+                <IconX size={18} />
               </button>
             </div>
 
             <div style={{ 
               flex: 1, 
-              minHeight: '480px', 
-              maxHeight: '580px', 
-              backgroundColor: '#e5e7eb', 
-              borderRadius: '6px', 
-              border: '1px solid var(--color-border)', 
+              minHeight: '440px', 
+              maxHeight: '560px', 
+              backgroundColor: 'var(--surface-subtle)', 
+              borderRadius: 'var(--radius-md)', 
+              border: '1px solid var(--border-subtle)', 
               overflowY: 'auto', 
               padding: '1.5rem', 
               display: 'flex', 
-              justify: 'center', 
+              justifyContent: 'center', 
               alignItems: 'flex-start' 
             }}>
               {generatingPdf ? (
-                <div style={{ padding: '4rem', textAlign: 'center', fontWeight: 700, color: 'var(--color-text-secondary)' }}>
-                  MEMBUAT PREVIEW LAPORAN PDF...
+                <div style={{ padding: '4rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                  Memproses pratinjau dokumen PDF...
                 </div>
               ) : previewImg ? (
                 <div style={{ 
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.15)', 
-                  border: '1px solid #cbd5e1', 
+                  boxShadow: 'var(--shadow-md)', 
+                  border: '1px solid var(--border-subtle)', 
                   backgroundColor: '#ffffff', 
                   maxWidth: '100%',
-                  borderRadius: '4px',
+                  borderRadius: 'var(--radius-sm)',
                   overflow: 'hidden'
                 }}>
                   <img 
@@ -483,7 +541,7 @@ export default function LaporanPage() {
                   />
                 </div>
               ) : (
-                <div style={{ color: 'var(--color-error)', padding: '2rem', fontWeight: 700 }}>Gagal memuat preview</div>
+                <div style={{ color: 'var(--status-danger)', padding: '2rem', fontWeight: 600, fontSize: '0.875rem' }}>Gagal memuat pratinjau dokumen.</div>
               )}
             </div>
 
@@ -492,18 +550,19 @@ export default function LaporanPage() {
                 type="button"
                 className="btn-secondary" 
                 onClick={() => setPdfPreviewModal(false)}
-                style={{ flex: '1 1 120px', padding: '0.75rem 1.25rem' }}
+                style={{ flex: '1 1 120px', padding: '0.65rem 1rem' }}
               >
-                BATAL
+                Batal
               </button>
               <button 
                 type="button"
                 className="btn-primary" 
                 onClick={handleDownloadPDF}
                 disabled={generatingPdf || !pdfDoc}
-                style={{ flex: '1 1 180px', padding: '0.75rem 1.25rem' }}
+                style={{ flex: '1 1 180px', padding: '0.65rem 1rem' }}
               >
-                SIMPAN / UNDUH PDF
+                <IconDownload size={15} />
+                <span>Unduh Dokumen PDF</span>
               </button>
             </div>
           </div>
