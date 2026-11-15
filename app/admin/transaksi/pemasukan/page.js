@@ -1358,7 +1358,13 @@ export default function PemasukanPage() {
                   fontWeight: 800
                 }}
               >
-                {deletingTxLoading ? 'MENGHAPUS...' : <IconTrash className="inline-block mr-1" size={16}/> YA, HAPUS}
+                {deletingTxLoading ? (
+                  'MENGHAPUS...'
+                ) : (
+                  <>
+                    <IconTrash size={15} style={{ marginRight: '0.35rem' }} /> YA, HAPUS
+                  </>
+                )}
               </button>
             </div>
           </div>
