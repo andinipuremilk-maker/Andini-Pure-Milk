@@ -222,10 +222,16 @@ export default function KasirPage() {
 
   const getOrderItemKey = (item) => item.order_item_key || `${item.produk_id}__${item.nama}`;
 
-  const addToOrder = (product, selectedVariant = null) => {
-    const itemKey = selectedVariant ? `${product.id}__${selectedVariant.id}` : product.id;
-    const itemNama = selectedVariant ? `${product.nama} (${selectedVariant.nama})` : product.nama;
-    const itemHarga = selectedVariant ? Number(selectedVariant.harga_jual) : Number(product.harga_jual);
+  const isMilkCategory = (prod) => {
+    if (!prod) return false;
+    const catName = getCategoryName(prod.kategori_id)?.toLowerCase() || '';
+    return catName.includes('susu') || prod.kategori_id === 'k1' || prod.kategori_id === '11111111-1111-1111-1111-111111111111';
+  };
+
+  const addToOrder = (product, kemasan = null) => {
+    const itemKey = kemasan ? `${product.id}__${kemasan}` : product.id;
+    const itemNama = kemasan ? `${product.nama} (${kemasan})` : product.nama;
+    const itemHarga = Number(product.harga_jual) || 0;
 
     setOrder(prev => {
       const existing = prev.find(item => getOrderItemKey(item) === itemKey);
@@ -239,8 +245,7 @@ export default function KasirPage() {
       return [...prev, { 
         order_item_key: itemKey,
         produk_id: product.id, 
-        variant_id: selectedVariant?.id || null,
-        variant_nama: selectedVariant?.nama || null,
+        kemasan: kemasan || null,
         nama: itemNama, 
         harga_satuan: itemHarga, 
         qty: 1,
@@ -900,18 +905,15 @@ export default function KasirPage() {
               gap: '0.85rem' 
             }}>
               {filteredProduk.map(p => {
-                const hasVariants = Array.isArray(p.variants) && p.variants.length > 0;
+                const isMilk = isMilkCategory(p);
                 const inCartItems = order.filter(item => item.produk_id === p.id);
                 const inCartQty = inCartItems.reduce((sum, item) => sum + item.qty, 0);
-                const minPrice = hasVariants 
-                  ? Math.min(...p.variants.map(v => Number(v.harga_jual) || 0)) 
-                  : p.harga_jual;
 
                 return (
                   <div 
                     key={p.id}
                     onClick={() => {
-                      if (hasVariants) {
+                      if (isMilk) {
                         setVariantModalProduct(p);
                       } else {
                         addToOrder(p);
@@ -1018,9 +1020,9 @@ export default function KasirPage() {
                           }}>
                             {getCategoryName(p.kategori_id)}
                           </span>
-                          {hasVariants && (
+                          {isMilk && (
                             <span className="badge-neutral" style={{ fontSize: '0.625rem', padding: '0.08rem 0.35rem', borderRadius: 'var(--radius-sm)', flexShrink: 0 }}>
-                              {p.variants.length} Ukuran
+                              Botol Kecil / Besar
                             </span>
                           )}
                         </div>
@@ -1041,8 +1043,7 @@ export default function KasirPage() {
 
                       <div>
                         <div className="tabular" style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                          {hasVariants && <span style={{ fontSize: '0.6875rem', fontWeight: 500, color: 'var(--text-secondary)', marginRight: '3px' }}>Mulai</span>}
-                          Rp {minPrice.toLocaleString('id-ID')}
+                          Rp {p.harga_jual.toLocaleString('id-ID')}
                         </div>
                         <div style={{ fontSize: '0.6875rem', color: (p.stok ?? 100) > 10 ? 'var(--text-tertiary)' : 'var(--status-warning)', marginTop: '0.15rem' }}>
                           Stok: <span className="tabular">{p.stok ?? 100}</span>
@@ -2223,26 +2224,29 @@ export default function KasirPage() {
                 </div>
               </div>
 
-              {/* Pilihan Opsi Ukuran */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {/* Pilihan Opsi Status Kemasan */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
                 <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Opsi Ukuran Tersedia:
+                  Pilih Status Kemasan:
                 </span>
-                {(variantModalProduct.variants || []).map((v, vIdx) => {
-                  const existingItem = order.find(item => item.order_item_key === `${variantModalProduct.id}__${v.id}`);
+                {[
+                  { key: 'Botol Kecil', label: 'Botol Kecil (250ml)', desc: 'Porsi personal praktis' },
+                  { key: 'Botol Besar', label: 'Botol Besar (1 Liter)', desc: 'Kemasan keluarga / sharing' }
+                ].map((kemasanOpt) => {
+                  const existingItem = order.find(item => item.order_item_key === `${variantModalProduct.id}__${kemasanOpt.key}`);
                   const existingQty = existingItem ? existingItem.qty : 0;
 
                   return (
                     <button
-                      key={v.id || vIdx}
+                      key={kemasanOpt.key}
                       type="button"
                       onClick={() => {
-                        addToOrder(variantModalProduct, v);
+                        addToOrder(variantModalProduct, kemasanOpt.key);
                         setVariantModalProduct(null);
                       }}
                       className="btn-secondary"
                       style={{
-                        padding: '0.75rem 1rem',
+                        padding: '0.85rem 1rem',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
@@ -2254,10 +2258,10 @@ export default function KasirPage() {
                         backgroundColor: existingQty > 0 ? 'var(--accent-subtle)' : 'var(--surface-panel)'
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <div style={{
-                          width: '28px',
-                          height: '28px',
+                          width: '32px',
+                          height: '32px',
                           borderRadius: 'var(--radius-sm)',
                           backgroundColor: 'var(--surface-sunken)',
                           display: 'flex',
@@ -2265,21 +2269,19 @@ export default function KasirPage() {
                           justifyContent: 'center',
                           color: 'var(--terracotta)'
                         }}>
-                          <IconMilk size={15} />
+                          <IconMilk size={17} />
                         </div>
                         <div>
-                          <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {v.nama}
+                          <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {kemasanOpt.label}
                           </div>
-                          {existingQty > 0 && (
-                            <span style={{ fontSize: '0.6875rem', color: 'var(--accent-primary)', fontWeight: 600 }}>
-                              {existingQty} di keranjang
-                            </span>
-                          )}
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', marginTop: '0.1rem' }}>
+                            {kemasanOpt.desc} {existingQty > 0 && <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>&bull; {existingQty} di keranjang</span>}
+                          </div>
                         </div>
                       </div>
                       <div className="tabular" style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                        Rp {Number(v.harga_jual).toLocaleString('id-ID')}
+                        Rp {Number(variantModalProduct.harga_jual).toLocaleString('id-ID')}
                       </div>
                     </button>
                   );

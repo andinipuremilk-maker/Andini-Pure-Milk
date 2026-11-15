@@ -82,17 +82,14 @@ export default function ProdukPage() {
 
   const openProductModal = (item = null) => {
     setEditItem(item);
-    const hasVariants = Array.isArray(item?.variants) && item.variants.length > 0;
     setFormData(
       item 
         ? { 
             ...item, 
-            image_url: item.image_url || '',
-            has_variants: hasVariants,
-            variant_kecil_jual: item.variants?.[0]?.harga_jual || '',
-            variant_kecil_modal: item.variants?.[0]?.harga_modal || '',
-            variant_besar_jual: item.variants?.[1]?.harga_jual || '',
-            variant_besar_modal: item.variants?.[1]?.harga_modal || ''
+            harga_jual: item.harga_jual ?? '',
+            harga_modal: item.harga_modal ?? '',
+            stok: item.stok ?? 100,
+            image_url: item.image_url || ''
           } 
         : { 
             nama: '', 
@@ -101,12 +98,7 @@ export default function ProdukPage() {
             harga_modal: '', 
             stok: 100, 
             kategori_id: kategori[0]?.id || '', 
-            image_url: '',
-            has_variants: false,
-            variant_kecil_jual: 8000,
-            variant_kecil_modal: 5000,
-            variant_besar_jual: 15000,
-            variant_besar_modal: 10000
+            image_url: ''
           }
     );
     setModalVisible(true);
@@ -115,42 +107,13 @@ export default function ProdukPage() {
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     setProcessing(true);
-    
-    let variantsPayload = [];
-    if (formData.has_variants) {
-      variantsPayload = [
-        {
-          id: 'v_kcl',
-          nama: 'Botol Kecil (250ml)',
-          harga_jual: parseInt(formData.variant_kecil_jual, 10) || 8000,
-          harga_modal: parseInt(formData.variant_kecil_modal, 10) || 5000,
-          sku: `${formData.sku}-KCL`
-        },
-        {
-          id: 'v_bsr',
-          nama: 'Botol Besar (1 Liter)',
-          harga_jual: parseInt(formData.variant_besar_jual, 10) || 15000,
-          harga_modal: parseInt(formData.variant_besar_modal, 10) || 10000,
-          sku: `${formData.sku}-BSR`
-        }
-      ];
-    }
-
-    const baseHargaJual = formData.has_variants && variantsPayload.length > 0
-      ? variantsPayload[0].harga_jual
-      : (parseInt(formData.harga_jual, 10) || 0);
-
-    const baseHargaModal = formData.has_variants && variantsPayload.length > 0
-      ? variantsPayload[0].harga_modal
-      : (parseInt(formData.harga_modal, 10) || 0);
 
     const method = editItem ? 'PUT' : 'POST';
     const payload = { 
       ...formData, 
-      harga_jual: baseHargaJual,
-      harga_modal: baseHargaModal,
-      stok: parseInt(formData.stok, 10) || 0,
-      variants: variantsPayload
+      harga_jual: parseInt(formData.harga_jual, 10) || 0,
+      harga_modal: parseInt(formData.harga_modal, 10) || 0,
+      stok: parseInt(formData.stok, 10) || 0
     };
 
     try {
@@ -437,9 +400,9 @@ export default function ProdukPage() {
                         <div>
                           <div style={{ fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                             <span>{item.nama}</span>
-                            {item.variants && item.variants.length > 0 && (
+                            {catName?.toLowerCase().includes('susu') && (
                               <span className="badge-chocolate" style={{ fontSize: '0.625rem', padding: '0.05rem 0.35rem', borderRadius: 'var(--radius-sm)' }}>
-                                {item.variants.length} Ukuran
+                                Botol Kecil & Besar
                               </span>
                             )}
                           </div>
@@ -469,19 +432,13 @@ export default function ProdukPage() {
 
                     {/* Harga Jual */}
                     <td className="tabular" style={{ padding: '0.75rem 0.85rem', textAlign: 'right', verticalAlign: 'middle' }}>
-                      {item.variants && item.variants.length > 0 ? (
-                        <div>
-                          <div style={{ fontWeight: 700, color: 'var(--terracotta)', fontSize: '0.84rem' }}>
-                            Rp {Math.min(...item.variants.map(v => Number(v.harga_jual) || 0)).toLocaleString('id-ID')} - Rp {Math.max(...item.variants.map(v => Number(v.harga_jual) || 0)).toLocaleString('id-ID')}
-                          </div>
-                          <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', display: 'block', marginTop: '0.1rem' }}>
-                            Botol Kecil & Besar
-                          </span>
-                        </div>
-                      ) : (
-                        <div style={{ fontWeight: 700, color: 'var(--terracotta)', fontSize: '0.875rem' }}>
-                          Rp {item.harga_jual?.toLocaleString('id-ID')}
-                        </div>
+                      <div style={{ fontWeight: 700, color: 'var(--terracotta)', fontSize: '0.875rem' }}>
+                        Rp {Number(item.harga_jual || 0).toLocaleString('id-ID')}
+                      </div>
+                      {catName?.toLowerCase().includes('susu') && (
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', display: 'block', marginTop: '0.1rem' }}>
+                          Status: Kecil & Besar
+                        </span>
                       )}
                     </td>
 
@@ -609,97 +566,39 @@ export default function ProdukPage() {
                 <input required className="input-field font-mono" placeholder="Contoh: APM-SUSU-ORI" value={formData.sku || ''} onChange={e => setFormData({...formData, sku: e.target.value})} />
               </div>
 
-              {/* Opsi Varian Ukuran */}
-              <div style={{ padding: '0.75rem', backgroundColor: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.78125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  <input
-                    type="checkbox"
-                    checked={formData.has_variants || false}
-                    onChange={e => setFormData({ ...formData, has_variants: e.target.checked })}
-                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                  />
-                  <span>Miliki Varian Ukuran (Botol Kecil 250ml & Botol Besar 1L)</span>
-                </label>
-
-                {formData.has_variants ? (
-                  <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.65rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.65rem' }}>
-                    {/* Botol Kecil */}
-                    <div>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--terracotta)' }}>1. Botol Kecil (250ml):</span>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.25rem' }}>
-                        <div>
-                          <label style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Harga Jual (Rp)</label>
-                          <input
-                            type="number"
-                            className="input-field tabular"
-                            placeholder="8000"
-                            value={formData.variant_kecil_jual || ''}
-                            onChange={e => setFormData({ ...formData, variant_kecil_jual: e.target.value })}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Harga Modal (Rp)</label>
-                          <input
-                            type="number"
-                            className="input-field tabular"
-                            placeholder="5000"
-                            value={formData.variant_kecil_modal || ''}
-                            onChange={e => setFormData({ ...formData, variant_kecil_modal: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Botol Besar */}
-                    <div>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--terracotta)' }}>2. Botol Besar (1 Liter):</span>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.25rem' }}>
-                        <div>
-                          <label style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Harga Jual (Rp)</label>
-                          <input
-                            type="number"
-                            className="input-field tabular"
-                            placeholder="15000"
-                            value={formData.variant_besar_jual || ''}
-                            onChange={e => setFormData({ ...formData, variant_besar_jual: e.target.value })}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Harga Modal (Rp)</label>
-                          <input
-                            type="number"
-                            className="input-field tabular"
-                            placeholder="10000"
-                            value={formData.variant_besar_modal || ''}
-                            onChange={e => setFormData({ ...formData, variant_besar_modal: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: formData.has_variants ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
-                {!formData.has_variants && (
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Harga Jual (Rp)</label>
-                    <input required={!formData.has_variants} type="number" className="input-field tabular" placeholder="15000" value={formData.harga_jual || ''} onChange={e => setFormData({...formData, harga_jual: e.target.value})} />
-                  </div>
-                )}
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Stok Persediaan</label>
-                  <input required type="number" className="input-field tabular" placeholder="100" value={formData.stok ?? ''} onChange={e => setFormData({...formData, stok: e.target.value})} />
-                </div>
-              </div>
-
               <div>
                 <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Kategori</label>
                 <select required className="input-field" value={formData.kategori_id || ''} onChange={e => setFormData({...formData, kategori_id: e.target.value})}>
                   <option value="">Pilih Kategori...</option>
                   {kategori.map(k => <option key={k.id} value={k.id}>{k.nama}</option>)}
                 </select>
+              </div>
+
+              {/* Info Kemasan Otomatis untuk Kategori Susu */}
+              {categoryMap[formData.kategori_id]?.toLowerCase().includes('susu') && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.65rem 0.85rem', backgroundColor: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                  <IconMilk size={18} style={{ color: 'var(--terracotta)', flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    <strong>Kategori Susu:</strong> Kasir otomatis menampilkan pilihan kemasan <strong>Botol Kecil (250ml)</strong> dan <strong>Botol Besar (1L)</strong> sebagai status tanpa perlu input harga terpisah.
+                  </span>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Harga Jual (Rp)</label>
+                  <input required type="number" className="input-field tabular" placeholder="15000" value={formData.harga_jual || ''} onChange={e => setFormData({...formData, harga_jual: e.target.value})} />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Harga Modal (Rp)</label>
+                  <input type="number" className="input-field tabular" placeholder="10000" value={formData.harga_modal || ''} onChange={e => setFormData({...formData, harga_modal: e.target.value})} />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Stok Persediaan</label>
+                <input required type="number" className="input-field tabular" placeholder="100" value={formData.stok ?? ''} onChange={e => setFormData({...formData, stok: e.target.value})} />
               </div>
 
               <div>
