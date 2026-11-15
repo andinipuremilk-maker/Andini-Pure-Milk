@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS public.produk (
     harga_jual BIGINT NOT NULL DEFAULT 0,
     harga_modal BIGINT NOT NULL DEFAULT 0,
     stok INT NOT NULL DEFAULT 100,
+    image_url TEXT,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -160,37 +161,37 @@ VALUES
 ON CONFLICT (nama) DO NOTHING;
 
 -- Seed Produk Andini Pure Milk
-INSERT INTO public.produk (kategori_id, nama, sku, harga_jual, harga_modal, stok, is_active)
+INSERT INTO public.produk (kategori_id, nama, sku, harga_jual, harga_modal, stok, image_url, is_active)
 VALUES
     -- Susu Murni & Olahan
-    ('11111111-1111-1111-1111-111111111111', 'Susu Murni 1 Liter', 'SM-1L', 15000, 10000, 100, true),
-    ('11111111-1111-1111-1111-111111111111', 'Susu Murni Hangat', 'SM-HGT', 10000, 6000, 100, true),
-    ('11111111-1111-1111-1111-111111111111', 'Sticky Milk', 'STK-MLK', 8000, 5500, 100, true),
-    ('11111111-1111-1111-1111-111111111111', 'Susu Coklat 1L', 'SC-1L', 18000, 12000, 100, true),
-    ('11111111-1111-1111-1111-111111111111', 'Es Susu Rasa (Melon/Straw)', 'SS-RSA', 10000, 6000, 100, true),
+    ('11111111-1111-1111-1111-111111111111', 'Susu Murni 1 Liter', 'SM-1L', 15000, 10000, 100, 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&auto=format&fit=crop&q=80', true),
+    ('11111111-1111-1111-1111-111111111111', 'Susu Murni Hangat', 'SM-HGT', 10000, 6000, 100, 'https://images.unsplash.com/photo-1541658016709-82535e94bc69?w=400&auto=format&fit=crop&q=80', true),
+    ('11111111-1111-1111-1111-111111111111', 'Sticky Milk', 'STK-MLK', 8000, 5500, 100, 'https://images.unsplash.com/photo-1528750997573-59b89d56f4f7?w=400&auto=format&fit=crop&q=80', true),
+    ('11111111-1111-1111-1111-111111111111', 'Susu Coklat 1L', 'SC-1L', 18000, 12000, 100, 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=400&auto=format&fit=crop&q=80', true),
+    ('11111111-1111-1111-1111-111111111111', 'Es Susu Rasa (Melon/Straw)', 'SS-RSA', 10000, 6000, 100, 'https://images.unsplash.com/photo-1556881286-fc6915169721?w=400&auto=format&fit=crop&q=80', true),
 
     -- Minuman Rempah (STMJ)
-    ('22222222-2222-2222-2222-222222222222', 'STMJ (Susu Telur Madu Jahe)', 'STMJ-ORG', 15000, 10000, 100, true),
-    ('22222222-2222-2222-2222-222222222222', 'SMJ (Susu Madu Jahe)', 'SMJ-ORG', 12000, 7500, 100, true),
-    ('22222222-2222-2222-2222-222222222222', 'Jahe Merah Ori', 'JHM-ORG', 10000, 6000, 100, true),
+    ('22222222-2222-2222-2222-222222222222', 'STMJ (Susu Telur Madu Jahe)', 'STMJ-ORG', 15000, 10000, 100, 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400&auto=format&fit=crop&q=80', true),
+    ('22222222-2222-2222-2222-222222222222', 'SMJ (Susu Madu Jahe)', 'SMJ-ORG', 12000, 7500, 100, 'https://images.unsplash.com/photo-1517578239113-b03992dcdd25?w=400&auto=format&fit=crop&q=80', true),
+    ('22222222-2222-2222-2222-222222222222', 'Jahe Merah Ori', 'JHM-ORG', 10000, 6000, 100, 'https://images.unsplash.com/photo-1541658016709-82535e94bc69?w=400&auto=format&fit=crop&q=80', true),
 
     -- Boba & Es Segar
-    ('33333333-3333-3333-3333-333333333333', 'BK (Boba Ketan)', 'BB-KTN', 8000, 4500, 100, true),
-    ('33333333-3333-3333-3333-333333333333', 'BB (Boba Brown Sugar)', 'BB-BSG', 10000, 5500, 100, true),
-    ('33333333-3333-3333-3333-333333333333', 'Kiko (Es Lilin)', 'KKO-ORG', 2000, 500, 500, true),
-    ('33333333-3333-3333-3333-333333333333', 'Es Krim & Puding', 'EKM-PDG', 5000, 2500, 100, true),
-    ('33333333-3333-3333-3333-333333333333', 'Es Tea Susu', 'ETS-SSU', 5000, 3000, 100, true),
+    ('33333333-3333-3333-3333-333333333333', 'BK (Boba Ketan)', 'BB-KTN', 8000, 4500, 100, 'https://images.unsplash.com/photo-1558857563-b371033873b8?w=400&auto=format&fit=crop&q=80', true),
+    ('33333333-3333-3333-3333-333333333333', 'BB (Boba Brown Sugar)', 'BB-BSG', 10000, 5500, 100, 'https://images.unsplash.com/photo-1558857563-b371033873b8?w=400&auto=format&fit=crop&q=80', true),
+    ('33333333-3333-3333-3333-333333333333', 'Kiko (Es Lilin)', 'KKO-ORG', 2000, 500, 500, 'https://images.unsplash.com/photo-1501443762994-82bd5dace89a?w=400&auto=format&fit=crop&q=80', true),
+    ('33333333-3333-3333-3333-333333333333', 'Es Krim & Puding', 'EKM-PDG', 5000, 2500, 100, 'https://images.unsplash.com/photo-1501443762994-82bd5dace89a?w=400&auto=format&fit=crop&q=80', true),
+    ('33333333-3333-3333-3333-333333333333', 'Es Tea Susu', 'ETS-SSU', 5000, 3000, 100, 'https://images.unsplash.com/photo-1556881286-fc6915169721?w=400&auto=format&fit=crop&q=80', true),
 
     -- Pie & Pastry
-    ('44444444-4444-4444-4444-444444444444', 'Pie Susu Original', 'PIE-ORG', 5000, 3000, 150, true),
-    ('44444444-4444-4444-4444-444444444444', 'Pie Susu Coklat', 'PIE-CKL', 5500, 3200, 150, true),
-    ('44444444-4444-4444-4444-444444444444', 'Pie Susu Kotak / Box', 'PIE-BOX', 25000, 15000, 50, true),
-    ('44444444-4444-4444-4444-444444444444', 'Brownies Slice', 'BRN-SLC', 15000, 9000, 50, true),
+    ('44444444-4444-4444-4444-444444444444', 'Pie Susu Original', 'PIE-ORG', 5000, 3000, 150, 'https://images.unsplash.com/photo-1519869325930-281384150729?w=400&auto=format&fit=crop&q=80', true),
+    ('44444444-4444-4444-4444-444444444444', 'Pie Susu Coklat', 'PIE-CKL', 5500, 3200, 150, 'https://images.unsplash.com/photo-1519869325930-281384150729?w=400&auto=format&fit=crop&q=80', true),
+    ('44444444-4444-4444-4444-444444444444', 'Pie Susu Kotak / Box', 'PIE-BOX', 25000, 15000, 50, 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&auto=format&fit=crop&q=80', true),
+    ('44444444-4444-4444-4444-444444444444', 'Brownies Slice', 'BRN-SLC', 15000, 9000, 50, 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=400&auto=format&fit=crop&q=80', true),
 
     -- Yogurt & Olahan Dairy
-    ('55555555-5555-5555-5555-555555555555', 'Yoghurt Bottle 250ml', 'YGH-250', 15000, 9000, 80, true),
-    ('55555555-5555-5555-5555-555555555555', 'Yoghurt Plain 500ml', 'YGH-500', 25000, 15000, 50, true),
-    ('55555555-5555-5555-5555-555555555555', 'Keju Mozzarella 200g', 'KJ-MOZ', 35000, 22000, 40, true)
+    ('55555555-5555-5555-5555-555555555555', 'Yoghurt Bottle 250ml', 'YGH-250', 15000, 9000, 80, 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=400&auto=format&fit=crop&q=80', true),
+    ('55555555-5555-5555-5555-555555555555', 'Yoghurt Plain 500ml', 'YGH-500', 25000, 15000, 50, 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=400&auto=format&fit=crop&q=80', true),
+    ('55555555-5555-5555-5555-555555555555', 'Keju Mozzarella 200g', 'KJ-MOZ', 35000, 22000, 40, 'https://images.unsplash.com/photo-1589881133595-a3c085cb731d?w=400&auto=format&fit=crop&q=80', true)
 ON CONFLICT (sku) DO NOTHING;
 
 -- Seed Sellers / Mitra
