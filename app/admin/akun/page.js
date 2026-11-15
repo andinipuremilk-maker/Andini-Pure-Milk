@@ -1,56 +1,66 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useResponsivePagination } from '../../../lib/useResponsivePagination';
+import {
+  IconSearch,
+  IconPlus,
+  IconEdit,
+  IconKey,
+  IconShield,
+  IconReceipt,
+  IconMilk,
+  IconPackage,
+  IconTruck,
+  IconUser,
+  IconX,
+  IconAlertCircle,
+  IconRefresh
+} from '../../../components/ui/icons';
 
 const ROLE_CONFIG = {
   admin: {
     label: 'ADMIN UTAMA',
-    badgeColor: '#5a321c',
-    badgeBg: '#f8f3ee',
-    icon: '👑',
+    badgeClass: 'badge-chocolate',
+    Icon: IconShield,
     accessScope: 'Full Control (Dashboard, Transaksi, Produk, Laporan, Manajemen Akun)'
   },
   kasir: {
     label: 'KASIR (POS)',
-    badgeColor: '#7c4a2d',
-    badgeBg: '#f8f3ee',
-    icon: '💵',
+    badgeClass: 'badge-chocolate',
+    Icon: IconReceipt,
     accessScope: 'Operasional POS Kasir, Transaksi Penjualan, Penerbitan Struk'
   },
   barista: {
     label: 'BARISTA / PERACIK',
-    badgeColor: '#b45309',
-    badgeBg: '#fef3c7',
-    icon: '🥛',
+    badgeClass: 'badge-neutral',
+    Icon: IconMilk,
     accessScope: 'Peracikan Minuman Susu & STMJ Rempah'
   },
   staff: {
     label: 'STAFF OPERASIONAL',
-    badgeColor: '#4338ca',
-    badgeBg: '#e0e7ff',
-    icon: '📦',
+    badgeClass: 'badge-neutral',
+    Icon: IconPackage,
     accessScope: 'Gudang & Perlengkapan Operasional Outlet'
   },
   kurir: {
     label: 'KURIR / DRIVER',
-    badgeColor: '#0369a1',
-    badgeBg: '#e0f2fe',
-    icon: '🛵',
+    badgeClass: 'badge-neutral',
+    Icon: IconTruck,
     accessScope: 'Pengantaran Pesanan Ritel & Titip Jual (Reseller)'
   }
 };
 
 function StatCard({ title, value, subtitle }) {
   return (
-    <div className="card" style={{ padding: '1rem 1.15rem', display: 'flex', flexDirection: 'column', justifyContent: 'center', borderLeft: '4px solid var(--color-chocolate)', backgroundColor: '#ffffff' }}>
-      <h3 style={{ fontSize: '0.6875rem', fontWeight: 800, color: 'var(--color-text-secondary)', marginBottom: '0.35rem', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+    <div className="panel" style={{ padding: '1rem 1.15rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+      <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
         {title}
-      </h3>
-      <p style={{ fontSize: '1.25rem', fontWeight: 900, margin: 0, overflowWrap: 'break-word', color: 'var(--color-chocolate)' }}>
+      </span>
+      <p className="tabular" style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, overflowWrap: 'break-word', color: 'var(--terracotta)' }}>
         {value}
       </p>
       {subtitle && (
-        <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-secondary)', marginTop: '0.2rem' }}>
+        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
           {subtitle}
         </span>
       )}
@@ -208,7 +218,7 @@ export default function ManajemenAkunPage() {
       message: isDeactivating
         ? `Akun "${acc.nama}" (@${acc.username}) tidak akan dapat lagi masuk ke sistem kasir/admin setelah dinonaktifkan.`
         : `Akun "${acc.nama}" (@${acc.username}) akan dipulihkan dan dapat kembali mengakses sistem.`,
-      confirmText: isDeactivating ? 'YA, NONAKTIFKAN' : 'YA, AKTIFKAN',
+      confirmText: isDeactivating ? 'Ya, Bekukan' : 'Ya, Aktifkan',
       confirmVariant: isDeactivating ? 'danger' : 'primary',
       onConfirm: async () => {
         try {
@@ -241,46 +251,54 @@ export default function ManajemenAkunPage() {
   return (
     <div className="admin-page-container">
       {/* Header Section */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 800, margin: 0, letterSpacing: '0.5px' }}>
-            MANAJEMEN AKUN
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+            Manajemen Akun
           </h1>
-          <p style={{ color: 'var(--color-text-secondary)', margin: '0.35rem 0 0 0', fontSize: '0.85rem' }}>
-            Pusat registrasi, hak akses peran (Admin / Kasir), dan reset kredensial sistem Andini Pure Milk
+          <p style={{ color: 'var(--text-secondary)', margin: '0.2rem 0 0 0', fontSize: '0.75rem' }}>
+            Pusat registrasi, hak akses peran, dan reset kredensial sistem Andini Pure Milk
           </p>
         </div>
         <button 
+          type="button"
           onClick={openCreateModal} 
-          className="btn-chocolate" 
-          style={{ padding: '0.65rem 1.15rem', fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
+          className="btn-primary" 
+          style={{ padding: '0.55rem 1rem', fontSize: '0.8125rem' }}
         >
-          <span>+</span>
-          <span>BUAT AKUN BARU</span>
+          <IconPlus size={15} />
+          <span>Buat Akun Baru</span>
         </button>
       </div>
 
-      {/* Security Info Callout (Explaining that public register is removed) */}
+      {/* Security Info Callout */}
       <div style={{
-        padding: '0.85rem 1.15rem',
-        borderRadius: '6px',
-        backgroundColor: 'var(--color-chocolate-light)',
-        borderLeft: '4px solid var(--color-chocolate)',
-        border: '1px solid var(--color-chocolate-border)',
-        marginBottom: '1.5rem',
+        padding: '0.85rem 1rem',
+        borderRadius: 'var(--radius-md)',
+        backgroundColor: 'var(--surface-subtle)',
+        border: '1px solid var(--border-subtle)',
+        marginBottom: '1.25rem',
         fontSize: '0.8125rem',
         lineHeight: 1.5,
-        color: '#4e2a14'
+        color: 'var(--text-secondary)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.65rem'
       }}>
-        <strong style={{ color: 'var(--color-chocolate)' }}>🔒 Pendaftaran Akun Terpusat:</strong> Halaman registrasi publik telah dinonaktifkan demi keamanan operasional gerai. Seluruh pembuatan kredensial kasir dan penugasan admin hanya dapat dilakukan langsung oleh Administrator melalui halaman ini.
+        <div style={{ color: 'var(--accent-primary)', flexShrink: 0 }}>
+          <IconKey size={16} />
+        </div>
+        <div>
+          <strong style={{ color: 'var(--text-primary)' }}>Pendaftaran Akun Terpusat:</strong> Halaman registrasi publik dinonaktifkan demi keamanan operasional gerai. Seluruh kredensial akun kasir dan staf hanya dapat diterbitkan oleh Administrator.
+        </div>
       </div>
 
       {/* Summary Metrics */}
-      <div className="responsive-stats-grid" style={{ marginBottom: '1.5rem' }}>
-        <StatCard title="TOTAL AKUN TERDAFTAR" value={`${stats.total} Akun`} subtitle={`${stats.aktif} Akun Status Aktif`} />
-        <StatCard title="AKUN ADMIN (OWNER)" value={`${stats.admin} Akun`} subtitle="Akses penuh manajemen & laporan" />
-        <StatCard title="AKUN KASIR (POS)" value={`${stats.kasir} Kasir`} subtitle="Akses transaksi penjualan di gerai" />
-        <StatCard title="AKUN NONAKTIF / DIBEKUKAN" value={`${stats.nonaktif} Akun`} subtitle="Akses login ditangguhkan" />
+      <div className="responsive-stats-grid" style={{ marginBottom: '1.25rem' }}>
+        <StatCard title="Total Akun Terdaftar" value={`${stats.total} Akun`} subtitle={`${stats.aktif} berstatus aktif`} />
+        <StatCard title="Akun Admin (Owner)" value={`${stats.admin} Akun`} subtitle="Akses penuh manajemen & laporan" />
+        <StatCard title="Akun Kasir (POS)" value={`${stats.kasir} Kasir`} subtitle="Akses transaksi penjualan di gerai" />
+        <StatCard title="Akun Dibekukan" value={`${stats.nonaktif} Akun`} subtitle="Akses login ditangguhkan" />
       </div>
 
       {/* Filter & Search Bar */}
@@ -288,25 +306,32 @@ export default function ManajemenAkunPage() {
         <div className="responsive-filter-bar">
           {/* Search Input */}
           <div style={{ flex: 2, minWidth: '180px' }}>
-            <input 
-              type="text" 
-              className="input-field"
-              placeholder="🔍 Cari username atau nama pengguna..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ padding: '0.65rem 0.85rem', fontSize: '0.875rem' }}
-            />
+            <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Pencarian</label>
+            <div style={{ position: 'relative' }}>
+              <input 
+                type="text" 
+                className="input-field"
+                placeholder="Cari username atau nama pengguna..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ paddingLeft: '2.1rem', fontSize: '0.8125rem' }}
+              />
+              <div style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', display: 'flex', pointerEvents: 'none' }}>
+                <IconSearch size={14} />
+              </div>
+            </div>
           </div>
 
           {/* Filter Role */}
-          <div style={{ flex: 1, minWidth: '150px' }}>
+          <div style={{ flex: 1.2, minWidth: '150px' }}>
+            <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Peran / Role</label>
             <select 
               className="input-field"
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
-              style={{ padding: '0.65rem 0.85rem', fontSize: '0.875rem' }}
+              style={{ fontSize: '0.8125rem' }}
             >
-              <option value="ALL">-- SEMUA PERAN / ROLE --</option>
+              <option value="ALL">Semua Peran / Role</option>
               <option value="admin">Admin Utama</option>
               <option value="kasir">Kasir POS</option>
               <option value="barista">Barista / Peracik</option>
@@ -317,245 +342,242 @@ export default function ManajemenAkunPage() {
 
           {/* Filter Status */}
           <div style={{ flex: 1, minWidth: '150px' }}>
+            <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Status Login</label>
             <select 
               className="input-field"
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              style={{ padding: '0.65rem 0.85rem', fontSize: '0.875rem' }}
+              style={{ fontSize: '0.8125rem' }}
             >
-              <option value="ALL">-- SEMUA STATUS LOGIN --</option>
-              <option value="ACTIVE">Aktif (Dapat Login)</option>
-              <option value="INACTIVE">Nonaktif (Dibekukan)</option>
+              <option value="ALL">Semua Status Login</option>
+              <option value="ACTIVE">Aktif Saja</option>
+              <option value="INACTIVE">Nonaktif / Dibekukan</option>
             </select>
           </div>
+
+          {(searchQuery || selectedRole !== 'ALL' || selectedStatus !== 'ALL') && (
+            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+              <button 
+                type="button"
+                className="btn-secondary" 
+                onClick={() => { setSearchQuery(''); setSelectedRole('ALL'); setSelectedStatus('ALL'); }}
+                style={{ padding: '0.55rem 0.85rem', fontSize: '0.75rem' }}
+              >
+                <IconRefresh size={13} />
+                <span>Reset</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Accounts Data Table */}
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div className="table-responsive">
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem', minWidth: '720px' }}>
-            <thead>
-              <tr style={{ backgroundColor: 'var(--color-bg-dark)', borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-secondary)', textAlign: 'left', fontSize: '0.6875rem', letterSpacing: '0.5px' }}>
-                <th style={{ padding: '0.85rem 1rem', width: '45px' }}>NO</th>
-                <th style={{ padding: '0.85rem 1rem' }}>PENGGUNA & PERAN</th>
-                <th style={{ padding: '0.85rem 1rem' }}>USERNAME LOGIN</th>
-                <th style={{ padding: '0.85rem 1rem' }}>HAK AKSES SISTEM</th>
-                <th style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>STATUS LOGIN</th>
-                <th style={{ padding: '0.85rem 1rem', textAlign: 'right', width: '200px' }}>AKSI KREDENSIAL</th>
+      <div className="table-responsive">
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem', minWidth: '720px', textAlign: 'left' }}>
+          <thead>
+            <tr style={{ backgroundColor: 'var(--surface-subtle)', borderBottom: '1px solid var(--border-subtle)' }}>
+              <th style={{ padding: '0.65rem 0.85rem', width: '45px', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em' }}>NO</th>
+              <th style={{ padding: '0.65rem 0.85rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em' }}>PENGGUNA & PERAN</th>
+              <th style={{ padding: '0.65rem 0.85rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em' }}>USERNAME LOGIN</th>
+              <th style={{ padding: '0.65rem 0.85rem', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em' }}>HAK AKSES SISTEM</th>
+              <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em' }}>STATUS LOGIN</th>
+              <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', width: '180px', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.6875rem', letterSpacing: '0.04em' }}>AKSI KREDENSIAL</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                  Memuat data akun...
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--color-text-secondary)' }}>
-                    Memuat data akun...
-                  </td>
-                </tr>
-              ) : accounts.length === 0 ? (
-                <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--color-text-secondary)' }}>
-                    Tidak ada akun yang sesuai dengan kriteria pencarian.
-                  </td>
-                </tr>
-              ) : (
-                paginatedAccounts.map((acc, idx) => {
-                  const roleConfig = ROLE_CONFIG[acc.role] || {
-                    label: acc.role.toUpperCase(),
-                    badgeColor: '#374151',
-                    badgeBg: '#f3f4f6',
-                    icon: '👤',
-                    accessScope: 'Akses Standar'
-                  };
-                  const isPrimaryAdmin = acc.id === 'u1' || acc.username === 'admin';
+            ) : accounts.length === 0 ? (
+              <tr>
+                <td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                  Tidak ada akun yang sesuai dengan kriteria pencarian.
+                </td>
+              </tr>
+            ) : (
+              paginatedAccounts.map((acc, idx) => {
+                const roleConfig = ROLE_CONFIG[acc.role] || {
+                  label: acc.role.toUpperCase(),
+                  badgeClass: 'badge-neutral',
+                  Icon: IconUser,
+                  accessScope: 'Akses Standar'
+                };
+                const RoleIcon = roleConfig.Icon || IconUser;
+                const isPrimaryAdmin = acc.id === 'u1' || acc.username === 'admin';
 
-                  return (
-                    <tr key={acc.id} style={{ borderBottom: '1px solid var(--color-border)', backgroundColor: !acc.is_active ? 'rgba(0,0,0,0.02)' : 'transparent' }}>
-                      <td style={{ padding: '0.85rem 1rem', color: 'var(--color-text-secondary)', fontWeight: 700 }}>
-                        {currentPage * ITEMS_PER_PAGE + idx + 1}
-                      </td>
+                return (
+                  <tr key={acc.id} style={{ borderBottom: '1px solid var(--border-subtle)', opacity: !acc.is_active ? 0.65 : 1, transition: 'background-color 0.15s ease' }}>
+                    <td className="tabular" style={{ padding: '0.75rem 0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                      {currentPage * ITEMS_PER_PAGE + idx + 1}
+                    </td>
 
-                      {/* User & Role */}
-                      <td style={{ padding: '0.85rem 1rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          <div style={{ 
-                            width: '32px', 
-                            height: '32px', 
-                            borderRadius: '50%', 
-                            backgroundColor: roleConfig.badgeBg, 
-                            color: roleConfig.badgeColor, 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center',
-                            fontSize: '14px',
-                            fontWeight: 800,
-                            flexShrink: 0
-                          }}>
-                            {roleConfig.icon}
-                          </div>
-                          <div>
-                            <div style={{ fontWeight: 800, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>
-                              {acc.nama}
-                            </div>
-                            <span style={{ 
-                              display: 'inline-block', 
-                              padding: '0.15rem 0.45rem', 
-                              borderRadius: '3px', 
-                              fontSize: '0.6875rem', 
-                              fontWeight: 700, 
-                              backgroundColor: roleConfig.badgeBg, 
-                              color: roleConfig.badgeColor,
-                              marginTop: '2px'
-                            }}>
-                              {roleConfig.label}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Username */}
-                      <td style={{ padding: '0.85rem 1rem' }}>
-                        <div style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.875rem' }}>
-                          @{acc.username}
-                        </div>
-                        <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-secondary)' }}>
-                          Dibuat: {acc.tanggal_masuk}
-                        </span>
-                      </td>
-
-                      {/* Access Scope */}
-                      <td style={{ padding: '0.85rem 1rem' }}>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', display: 'block', lineHeight: 1.3 }}>
-                          {roleConfig.accessScope}
-                        </span>
-                      </td>
-
-                      {/* Status */}
-                      <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
-                        <span style={{ 
-                          display: 'inline-block', 
-                          padding: '0.2rem 0.55rem', 
-                          borderRadius: '12px', 
-                          fontSize: '0.6875rem', 
-                          fontWeight: 800, 
-                          backgroundColor: acc.is_active ? '#dcfce7' : '#fee2e2', 
-                          color: acc.is_active ? '#15803d' : '#b91c1c' 
+                    {/* User & Role */}
+                    <td style={{ padding: '0.75rem 0.85rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <div style={{ 
+                          width: '32px', 
+                          height: '32px', 
+                          borderRadius: 'var(--radius-md)', 
+                          backgroundColor: 'var(--surface-subtle)', 
+                          border: '1px solid var(--border-subtle)',
+                          color: 'var(--accent-primary)', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          flexShrink: 0
                         }}>
-                          {acc.is_active ? '● AKTIF' : '○ NONAKTIF'}
-                        </span>
-                      </td>
-
-                      {/* Actions */}
-                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.45rem' }}>
-                          <button 
-                            onClick={() => openEditModal(acc)}
-                            className="btn-secondary" 
-                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem', fontWeight: 700 }}
-                            title="Reset password atau ubah hak akses"
-                          >
-                            UBAH / RESET
-                          </button>
-
-                          {!isPrimaryAdmin && (
-                            <button 
-                              onClick={() => handleToggleStatus(acc)}
-                              style={{ 
-                                padding: '0.35rem 0.65rem', 
-                                fontSize: '0.75rem', 
-                                fontWeight: 700,
-                                borderRadius: '4px',
-                                border: '1px solid var(--color-border)',
-                                backgroundColor: 'transparent',
-                                color: acc.is_active ? 'var(--color-error)' : '#15803d',
-                                cursor: 'pointer'
-                              }}
-                              title={acc.is_active ? 'Bekukan akun' : 'Aktifkan kembali akun'}
-                            >
-                              {acc.is_active ? 'BEKUKAN' : 'AKTIFKAN'}
-                            </button>
-                          )}
+                          <RoleIcon size={16} />
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.8125rem' }}>
+                            {acc.nama}
+                          </div>
+                          <span className={roleConfig.badgeClass} style={{ fontSize: '0.65rem', marginTop: '0.15rem' }}>
+                            {roleConfig.label}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
 
-        {/* Pagination Controls */}
-        {accounts.length > ITEMS_PER_PAGE && (
-          <div className="responsive-pagination" style={{ padding: '0.85rem 1rem', borderTop: '1px solid var(--color-border)' }}>
-            <button 
-              onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))} 
-              disabled={currentPage === 0}
-              className="btn-secondary"
-              style={{ padding: '0.45rem 0.85rem', fontSize: '0.8125rem' }}
-            >
-              &larr; SEBELUMNYA
-            </button>
-            <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-text-secondary)', textAlign: 'center' }}>
-              Menampilkan {accounts.length === 0 ? 0 : currentPage * ITEMS_PER_PAGE + 1} - {Math.min((currentPage + 1) * ITEMS_PER_PAGE, accounts.length)} dari {accounts.length} akun &bull; Halaman {currentPage + 1} dari {totalPages}
-            </span>
-            <button 
-              onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))} 
-              disabled={currentPage >= totalPages - 1}
-              className="btn-secondary"
-              style={{ padding: '0.45rem 0.85rem', fontSize: '0.8125rem' }}
-            >
-              SELANJUTNYA &rarr;
-            </button>
-          </div>
-        )}
+                    {/* Username */}
+                    <td style={{ padding: '0.75rem 0.85rem' }}>
+                      <span className="font-mono" style={{ 
+                        fontWeight: 600, 
+                        fontSize: '0.75rem', 
+                        backgroundColor: 'var(--surface-subtle)', 
+                        padding: '0.2rem 0.45rem', 
+                        borderRadius: 'var(--radius-sm)', 
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-primary)'
+                      }}>
+                        @{acc.username}
+                      </span>
+                      {acc.tanggal_masuk && (
+                        <div className="tabular" style={{ fontSize: '0.6875rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                          Dibuat: {acc.tanggal_masuk}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Access Scope */}
+                    <td style={{ padding: '0.75rem 0.85rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', lineHeight: 1.4 }}>
+                        {roleConfig.accessScope}
+                      </span>
+                    </td>
+
+                    {/* Status */}
+                    <td style={{ padding: '0.75rem 0.85rem', textAlign: 'center' }}>
+                      <span className={acc.is_active ? 'badge-success' : 'badge-neutral'} style={{ fontSize: '0.65rem' }}>
+                        {acc.is_active ? '● Aktif' : '○ Nonaktif'}
+                      </span>
+                    </td>
+
+                    {/* Actions */}
+                    <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', justifyContent: 'flex-end', gap: '0.4rem' }}>
+                        <button 
+                          type="button"
+                          onClick={() => openEditModal(acc)}
+                          className="btn-secondary" 
+                          style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                          title="Reset password atau ubah hak akses"
+                        >
+                          <IconKey size={13} />
+                          <span>Ubah / Reset</span>
+                        </button>
+
+                        {!isPrimaryAdmin && (
+                          <button 
+                            type="button"
+                            onClick={() => handleToggleStatus(acc)}
+                            className="btn-secondary"
+                            style={{ 
+                              padding: '0.35rem 0.65rem', 
+                              fontSize: '0.75rem',
+                              color: acc.is_active ? 'var(--status-danger)' : 'var(--status-success)',
+                              borderColor: 'var(--border-subtle)'
+                            }}
+                            title={acc.is_active ? 'Bekukan akun' : 'Aktifkan kembali akun'}
+                          >
+                            {acc.is_active ? 'Bekukan' : 'Aktifkan'}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
+
+      {/* Pagination Controls */}
+      {accounts.length > ITEMS_PER_PAGE && (
+        <div className="responsive-pagination" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <button 
+            type="button"
+            onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))} 
+            disabled={currentPage === 0}
+            className="btn-secondary"
+            style={{ padding: '0.45rem 0.85rem', fontSize: '0.8125rem' }}
+          >
+            &larr; Sebelumnya
+          </button>
+          <span className="tabular" style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'center' }}>
+            Menampilkan {accounts.length === 0 ? 0 : currentPage * ITEMS_PER_PAGE + 1} - {Math.min((currentPage + 1) * ITEMS_PER_PAGE, accounts.length)} dari {accounts.length} akun &bull; Halaman {currentPage + 1} dari {totalPages}
+          </span>
+          <button 
+            type="button"
+            onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))} 
+            disabled={currentPage >= totalPages - 1}
+            className="btn-secondary"
+            style={{ padding: '0.45rem 0.85rem', fontSize: '0.8125rem' }}
+          >
+            Selanjutnya &rarr;
+          </button>
+        </div>
+      )}
 
       {/* MODAL: Buat Akun Baru / Ubah & Reset Password */}
       {modalVisible && (
-        <div style={{ 
-          position: 'fixed', 
-          top: 0, 
-          left: 0, 
-          right: 0, 
-          bottom: 0, 
-          backgroundColor: 'rgba(0,0,0,0.5)', 
-          backdropFilter: 'blur(3px)',
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          zIndex: 10000,
-          padding: '1rem'
-        }}>
-          <div className="card modal-content" style={{ width: '100%', maxWidth: '460px', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.75rem' }}>
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="modal-content" style={{ maxWidth: '460px', width: '92%', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.85rem' }}>
               <div>
-                <h2 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>
-                  {editItem ? 'UBAH / RESET KREDENSIAL AKUN' : 'BUAT AKUN BARU'}
+                <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0, letterSpacing: '-0.01em', color: 'var(--text-primary)' }}>
+                  {editItem ? 'Ubah / Reset Kredensial Akun' : 'Buat Akun Baru'}
                 </h2>
-                <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-secondary)' }}>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
                   {editItem ? `Mengelola akun @${editItem.username}` : 'Registrasi akun pengguna resmi oleh Administrator'}
-                </span>
+                </p>
               </div>
               <button 
+                type="button"
                 onClick={() => setModalVisible(false)}
-                style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer', fontWeight: 800 }}
+                style={{ color: 'var(--text-secondary)', padding: '0.35rem', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center' }}
+                aria-label="Tutup modal"
               >
-                &times;
+                <IconX size={18} />
               </button>
             </div>
 
             {formError && (
-              <div style={{ padding: '0.65rem 0.85rem', backgroundColor: '#fee2e2', color: '#b91c1c', borderRadius: '4px', fontSize: '0.8125rem', marginBottom: '1rem', fontWeight: 600 }}>
-                ⚠️ {formError}
+              <div style={{ padding: '0.65rem 0.85rem', backgroundColor: 'var(--status-danger-bg)', border: '1px solid var(--status-danger-border)', color: 'var(--status-danger)', borderRadius: 'var(--radius-md)', fontSize: '0.8125rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <IconAlertCircle size={15} />
+                <span>{formError}</span>
               </div>
             )}
 
-            <form onSubmit={handleSaveAccount}>
+            <form onSubmit={handleSaveAccount} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {/* Nama Lengkap */}
-              <div style={{ marginBottom: '0.85rem' }}>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--color-text-secondary)' }}>
-                  NAMA LENGKAP PENGGUNA *
+              <div>
+                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+                  Nama Lengkap Pengguna *
                 </label>
                 <input 
                   type="text" 
@@ -563,15 +585,15 @@ export default function ManajemenAkunPage() {
                   placeholder="Contoh: Siti Rahma"
                   value={formData.nama}
                   onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
-                  style={{ width: '100%', padding: '0.55rem 0.75rem', fontSize: '0.8125rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}
+                  className="input-field"
                 />
               </div>
 
               {/* Username & Role (Grid 2 Kolom) */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--color-text-secondary)' }}>
-                    USERNAME LOGIN *
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+                    Username Login *
                   </label>
                   <input 
                     type="text" 
@@ -579,19 +601,19 @@ export default function ManajemenAkunPage() {
                     placeholder="contoh: kasir_siti"
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value.toLowerCase().trim() })}
-                    style={{ width: '100%', padding: '0.55rem 0.75rem', fontSize: '0.8125rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}
+                    className="input-field font-mono"
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--color-text-secondary)' }}>
-                    PERAN / HAK AKSES *
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+                    Peran / Hak Akses *
                   </label>
                   <select 
                     value={formData.role}
                     onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                     disabled={editItem?.id === 'u1' || editItem?.username === 'admin'}
-                    style={{ width: '100%', padding: '0.55rem 0.75rem', fontSize: '0.8125rem', borderRadius: '4px', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-bg-light)' }}
+                    className="input-field"
                   >
                     <option value="kasir">Kasir POS (Gerai)</option>
                     <option value="admin">Admin Utama (Owner)</option>
@@ -603,9 +625,9 @@ export default function ManajemenAkunPage() {
               </div>
 
               {/* Password */}
-              <div style={{ marginBottom: '0.85rem' }}>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--color-text-secondary)' }}>
-                  {editItem ? 'RESET PASSWORD BARU (Kosongkan jika tidak diubah)' : 'PASSWORD LOGIN *'}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+                  {editItem ? 'Reset Password Baru (Kosongkan jika tidak diubah)' : 'Password Login *'}
                 </label>
                 <input 
                   type="password" 
@@ -613,15 +635,15 @@ export default function ManajemenAkunPage() {
                   placeholder={editItem ? 'Masukkan password baru bila ingin mereset...' : 'Password login akun'}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  style={{ width: '100%', padding: '0.55rem 0.75rem', fontSize: '0.8125rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}
+                  className="input-field"
                 />
               </div>
 
               {/* Konfirmasi Password */}
               {(!editItem || formData.password) && (
-                <div style={{ marginBottom: '0.85rem' }}>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--color-text-secondary)' }}>
-                    ULANGI PASSWORD *
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+                    Ulangi Password *
                   </label>
                   <input 
                     type="password" 
@@ -629,15 +651,15 @@ export default function ManajemenAkunPage() {
                     placeholder="Ketik ulang password untuk konfirmasi"
                     value={formData.confirmPassword}
                     onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                    style={{ width: '100%', padding: '0.55rem 0.75rem', fontSize: '0.8125rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}
+                    className="input-field"
                   />
                 </div>
               )}
 
               {/* Status Akun (saat Edit) */}
               {editItem && (
-                <div style={{ marginBottom: '1.25rem', padding: '0.75rem', backgroundColor: 'var(--color-bg-dark)', borderRadius: '4px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8125rem', fontWeight: 700 }}>
+                <div style={{ padding: '0.75rem', backgroundColor: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8125rem', fontWeight: 600 }}>
                     <input 
                       type="checkbox" 
                       checked={formData.is_active}
@@ -647,7 +669,7 @@ export default function ManajemenAkunPage() {
                     <span>Akun Aktif (Dapat Mengakses & Login ke Sistem)</span>
                   </label>
                   {(editItem.id === 'u1' || editItem.username === 'admin') && (
-                    <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-secondary)', display: 'block', marginTop: '2px' }}>
+                    <span style={{ fontSize: '0.6875rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.2rem' }}>
                       * Akun Admin Utama tidak boleh dinonaktifkan demi integritas sistem.
                     </span>
                   )}
@@ -655,23 +677,23 @@ export default function ManajemenAkunPage() {
               )}
 
               {/* Action Buttons */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '1.5rem', borderTop: '1px solid var(--color-border)', paddingTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.85rem' }}>
                 <button 
                   type="button" 
                   onClick={() => setModalVisible(false)}
                   className="btn-secondary"
                   disabled={processing}
-                  style={{ padding: '0.55rem 1rem', fontSize: '0.8125rem' }}
+                  style={{ flex: 1, padding: '0.65rem' }}
                 >
-                  BATAL
+                  Batal
                 </button>
                 <button 
                   type="submit" 
-                  className="btn-chocolate"
+                  className="btn-primary"
                   disabled={processing}
-                  style={{ padding: '0.55rem 1.25rem', fontSize: '0.8125rem' }}
+                  style={{ flex: 1.3, padding: '0.65rem' }}
                 >
-                  {processing ? 'MEMPROSES...' : (editItem ? 'SIMPAN PERUBAHAN' : 'BUAT AKUN')}
+                  {processing ? 'Memproses...' : (editItem ? 'Simpan Perubahan' : 'Buat Akun')}
                 </button>
               </div>
             </form>
@@ -681,48 +703,43 @@ export default function ManajemenAkunPage() {
 
       {/* CONFIRMATION MODAL */}
       {confirmModal.visible && (
-        <div style={{ 
-          position: 'fixed', 
-          top: 0, 
-          left: 0, 
-          right: 0, 
-          bottom: 0, 
-          backgroundColor: 'rgba(0,0,0,0.5)', 
-          backdropFilter: 'blur(3px)',
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          zIndex: 10001,
-          padding: '1rem'
-        }}>
-          <div className="card modal-content" style={{ width: '100%', maxWidth: '420px', padding: '1.5rem' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
+        <div className="modal-overlay" style={{ zIndex: 1200 }}>
+          <div className="modal-content" style={{ maxWidth: '420px', width: '92%', textAlign: 'center', padding: '1.5rem' }}>
+            <div style={{ 
+              width: '44px', 
+              height: '44px', 
+              borderRadius: '50%', 
+              backgroundColor: confirmModal.confirmVariant === 'danger' ? 'var(--status-danger-bg)' : 'var(--accent-subtle)', 
+              border: `1px solid ${confirmModal.confirmVariant === 'danger' ? 'var(--status-danger-border)' : 'var(--accent-border)'}`, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              margin: '0 auto 1rem', 
+              color: confirmModal.confirmVariant === 'danger' ? 'var(--status-danger)' : 'var(--accent-primary)' 
+            }}>
+              <IconAlertCircle size={24} />
+            </div>
+
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
               {confirmModal.title}
             </h3>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
               {confirmModal.message}
             </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button 
+                type="button"
                 onClick={() => setConfirmModal(prev => ({ ...prev, visible: false }))}
                 className="btn-secondary"
-                style={{ padding: '0.5rem 0.85rem', fontSize: '0.75rem' }}
+                style={{ flex: 1, padding: '0.65rem' }}
               >
-                BATAL
+                Batal
               </button>
               <button 
+                type="button"
                 onClick={confirmModal.onConfirm}
                 className={confirmModal.confirmVariant === 'danger' ? 'btn-danger' : 'btn-primary'}
-                style={{ 
-                  padding: '0.5rem 1rem', 
-                  fontSize: '0.75rem',
-                  backgroundColor: confirmModal.confirmVariant === 'danger' ? 'var(--color-error)' : 'var(--color-text-primary)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontWeight: 800,
-                  cursor: 'pointer'
-                }}
+                style={{ flex: 1, padding: '0.65rem' }}
               >
                 {confirmModal.confirmText}
               </button>
