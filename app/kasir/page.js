@@ -106,6 +106,7 @@ export default function KasirPage() {
     'TIM ANDINI',
     'Lainnya (Kustom)'
   ]);
+  const [boothsList, setBoothsList] = useState([]);
   const [showQuickAddSeller, setShowQuickAddSeller] = useState(false);
   const [quickSellerName, setQuickSellerName] = useState('');
   const [savingQuickSeller, setSavingQuickSeller] = useState(false);
@@ -200,8 +201,9 @@ export default function KasirPage() {
       fetch('/api/produk').then(r => r.json()),
       fetch('/api/kategori').then(r => r.json()),
       fetch('/api/sellers').then(r => r.json()).catch(() => ({})),
-      fetch('/api/transaksi?status=pending&limit=100').then(r => r.json()).catch(() => [])
-    ]).then(([prodRes, katRes, sellerRes, pendingRes]) => {
+      fetch('/api/transaksi?status=pending&limit=100').then(r => r.json()).catch(() => []),
+      fetch('/api/booth?active_only=true').then(r => r.json()).catch(() => [])
+    ]).then(([prodRes, katRes, sellerRes, pendingRes, boothRes]) => {
       setProduk(Array.isArray(prodRes) ? prodRes : []);
       setKategori(Array.isArray(katRes) ? katRes : []);
       if (sellerRes && Array.isArray(sellerRes.sellers)) {
@@ -211,6 +213,9 @@ export default function KasirPage() {
       }
       if (Array.isArray(pendingRes)) {
         setPendingCount(pendingRes.length);
+      }
+      if (Array.isArray(boothRes) && boothRes.length > 0) {
+        setBoothsList(boothRes);
       }
       setLoading(false);
     });
@@ -729,12 +734,20 @@ export default function KasirPage() {
               }}
             >
               <option value="">-- Pilih Booth Penjualan --</option>
-              <option value="Booth 1 - Gerai Utama (Pusat)">Booth 1 - Gerai Utama (Pusat)</option>
-              <option value="Booth 2 - Alun-Alun Kota">Booth 2 - Alun-Alun Kota</option>
-              <option value="Booth 3 - Pantai Boom">Booth 3 - Pantai Boom</option>
-              <option value="Booth 4 - Kampus & Sekolah">Booth 4 - Kampus & Sekolah</option>
-              <option value="Booth 5 - RTH Maron Genteng">Booth 5 - RTH Maron Genteng</option>
-              <option value="Booth Event / Bazar Keliling">Booth Event / Bazar Keliling</option>
+              {boothsList.length > 0 ? (
+                boothsList.map(b => (
+                  <option key={b.id || b.nama} value={b.nama}>{b.nama}</option>
+                ))
+              ) : (
+                <>
+                  <option value="Booth 1 - Gerai Utama (Pusat)">Booth 1 - Gerai Utama (Pusat)</option>
+                  <option value="Booth 2 - Alun-Alun Kota">Booth 2 - Alun-Alun Kota</option>
+                  <option value="Booth 3 - Pantai Boom">Booth 3 - Pantai Boom</option>
+                  <option value="Booth 4 - Kampus & Sekolah">Booth 4 - Kampus & Sekolah</option>
+                  <option value="Booth 5 - RTH Maron Genteng">Booth 5 - RTH Maron Genteng</option>
+                  <option value="Booth Event / Bazar Keliling">Booth Event / Bazar Keliling</option>
+                </>
+              )}
             </select>
           </div>
 

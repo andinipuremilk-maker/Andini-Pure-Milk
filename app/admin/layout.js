@@ -7,6 +7,7 @@ import {
   IconDashboard,
   IconReceipt,
   IconPackage,
+  IconStore,
   IconUsers,
   IconShield,
   IconFileText,
@@ -271,6 +272,27 @@ export default function AdminLayout({ children }) {
         >
           <IconPackage size={16} />
           <span>Produk & Stok</span>
+        </Link>
+
+        {/* Kelola Booth */}
+        <Link
+          href="/admin/booth"
+          onClick={() => setMobileMenuOpen(false)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.65rem',
+            padding: '0.55rem 0.75rem',
+            borderRadius: 'var(--radius-md)',
+            fontSize: '0.8125rem',
+            fontWeight: pathname === '/admin/booth' ? 600 : 500,
+            backgroundColor: pathname === '/admin/booth' ? 'var(--accent-subtle)' : 'transparent',
+            color: pathname === '/admin/booth' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+            transition: 'all 0.12s ease'
+          }}
+        >
+          <IconStore size={16} />
+          <span>Kelola Booth</span>
         </Link>
 
         {/* Karyawan */}

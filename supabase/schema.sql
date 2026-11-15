@@ -40,7 +40,17 @@ CREATE TABLE IF NOT EXISTS public.produk (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. TABEL: sellers (Mitra / Reseller)
+-- 5. TABEL: booths (Gerai / Titik Penjualan)
+CREATE TABLE IF NOT EXISTS public.booths (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nama TEXT UNIQUE NOT NULL,
+    lokasi TEXT DEFAULT '',
+    penanggung_jawab TEXT DEFAULT '',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. TABEL: sellers (Mitra / Reseller)
 CREATE TABLE IF NOT EXISTS public.sellers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nama TEXT UNIQUE NOT NULL,
@@ -97,6 +107,7 @@ CREATE INDEX IF NOT EXISTS idx_transaksi_seller ON public.transaksi (seller);
 CREATE INDEX IF NOT EXISTS idx_detail_transaksi_trx ON public.detail_transaksi (transaksi_id);
 CREATE INDEX IF NOT EXISTS idx_pengeluaran_tanggal ON public.pengeluaran (tanggal DESC);
 CREATE INDEX IF NOT EXISTS idx_produk_kategori ON public.produk (kategori_id);
+CREATE INDEX IF NOT EXISTS idx_booths_nama ON public.booths (nama);
 
 -- ==============================================================================
 -- ROW LEVEL SECURITY (RLS)
@@ -105,6 +116,7 @@ CREATE INDEX IF NOT EXISTS idx_produk_kategori ON public.produk (kategori_id);
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.kategori_produk ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.produk ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.booths ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sellers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transaksi ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.detail_transaksi ENABLE ROW LEVEL SECURITY;
@@ -121,6 +133,9 @@ BEGIN
 
     DROP POLICY IF EXISTS "Allow all on produk" ON public.produk;
     CREATE POLICY "Allow all on produk" ON public.produk FOR ALL USING (true) WITH CHECK (true);
+
+    DROP POLICY IF EXISTS "Allow all on booths" ON public.booths;
+    CREATE POLICY "Allow all on booths" ON public.booths FOR ALL USING (true) WITH CHECK (true);
 
     DROP POLICY IF EXISTS "Allow all on sellers" ON public.sellers;
     CREATE POLICY "Allow all on sellers" ON public.sellers FOR ALL USING (true) WITH CHECK (true);
@@ -207,6 +222,17 @@ VALUES
     ('AIRIN'),
     ('PAK TOTOK'),
     ('TIM ANDINI')
+ON CONFLICT (nama) DO NOTHING;
+
+-- Seed Booths (Gerai Penjualan)
+INSERT INTO public.booths (nama, lokasi, penanggung_jawab, is_active)
+VALUES 
+    ('Booth 1 - Gerai Utama (Pusat)', 'Outlet Pusat Andini', 'Admin Utama', true),
+    ('Booth 2 - Alun-Alun Kota', 'Kawasan Kuliner Alun-Alun', 'Eko Prasetyo', true),
+    ('Booth 3 - Pantai Boom', 'Area Wisata Pantai Boom', 'Siti Rahma', true),
+    ('Booth 4 - Kampus & Sekolah', 'Jl. Pendidikan No. 45', 'Rizky Ramadhan', true),
+    ('Booth 5 - RTH Maron Genteng', 'Taman Hijau Genteng', 'Angga Wijaya', true),
+    ('Booth Event / Bazar Keliling', 'Mobile / Fleksibel', 'Farhan Maulana', true)
 ON CONFLICT (nama) DO NOTHING;
 
 -- Seed Sample Pengeluaran Operasional

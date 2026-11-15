@@ -1,5 +1,5 @@
 'use client';
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   IconMilk, 
@@ -58,6 +58,22 @@ function LoginForm() {
   const [newBoothInput, setNewBoothInput] = useState('');
   const [quickBoothError, setQuickBoothError] = useState('');
 
+  // Sinkronisasi data booth dinamis dari database
+  useEffect(() => {
+    fetch('/api/booth?active_only=true')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          const names = data.map(b => b.nama);
+          if (!names.includes('Lainnya (Kustom)')) {
+            names.push('Lainnya (Kustom)');
+          }
+          setBoothList(names);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Switch tab kasir / admin
   const handleTabChange = (targetRole) => {
     setRole(targetRole);
@@ -68,13 +84,22 @@ function LoginForm() {
   };
 
   // Handle Tambah Booth Baru
-  const handleAddNewBooth = () => {
+  const handleAddNewBooth = async () => {
     const trimmed = newBoothInput.trim();
     if (!trimmed) {
       setQuickBoothError('Nama booth tidak boleh kosong.');
       return;
     }
     setQuickBoothError('');
+
+    try {
+      await fetch('/api/booth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nama: trimmed, lokasi: 'Didaftarkan dari Login', is_active: true })
+      });
+    } catch (e) {}
+
     setBoothList(prev => {
       const withoutCustom = prev.filter(b => b !== 'Lainnya (Kustom)');
       if (!withoutCustom.includes(trimmed)) {
