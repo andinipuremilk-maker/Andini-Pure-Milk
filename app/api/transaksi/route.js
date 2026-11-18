@@ -25,6 +25,12 @@ export async function GET(req) {
           user_id,
           seller,
           tanggal,
+          subtotal,
+          diskon,
+          diskon_tipe,
+          diskon_nilai,
+          diskon_id,
+          diskon_nama,
           total,
           bayar,
           kembalian,
@@ -67,8 +73,16 @@ export async function GET(req) {
       if (!error && data) {
         let list = data.map(t => {
           const totalSetor = Number(t.total) || 0;
+          const subtotal = t.subtotal !== undefined && t.subtotal !== null ? Number(t.subtotal) : totalSetor;
+          const diskon = Number(t.diskon) || 0;
           return {
             ...t,
+            subtotal,
+            diskon,
+            diskon_tipe: t.diskon_tipe || 'nominal',
+            diskon_nilai: Number(t.diskon_nilai) || 0,
+            diskon_id: t.diskon_id || null,
+            diskon_nama: t.diskon_nama || null,
             kasir: t.kasir || (t.user_id ? 'Kasir' : 'Kasir Gerai'),
             total_setor: totalSetor,
             total_modal: Math.round(totalSetor * 0.6),
@@ -110,9 +124,16 @@ export async function GET(req) {
     const userStaff = db.users?.find(u => u.id === t.user_id);
     const kasir = t.kasir || (userStaff ? userStaff.nama : 'Kasir Gerai');
     const booth = t.booth || 'Gerai Utama';
+    const subtotal = t.subtotal !== undefined ? Number(t.subtotal) : Number(t.total || 0);
 
     return {
       ...t,
+      subtotal,
+      diskon: Number(t.diskon) || 0,
+      diskon_tipe: t.diskon_tipe || 'nominal',
+      diskon_nilai: Number(t.diskon_nilai) || 0,
+      diskon_id: t.diskon_id || null,
+      diskon_nama: t.diskon_nama || null,
       kasir,
       booth,
       items: details
@@ -176,8 +197,23 @@ export async function POST(req) {
   
   const no_transaksi = 'TRX-' + Date.now();
   const seller = transaksiData.seller || 'Umum / Retail';
-  const totalSetor = Number(transaksiData.total) || 0;
   const status = transaksiData.status || 'selesai';
+
+  const itemsSubtotal = (detailItems || []).reduce((sum, item) => sum + (Number(item.qty) || 1) * (Number(item.harga_satuan) || 0), 0);
+  const rawSubtotal = Number(transaksiData.subtotal) || itemsSubtotal;
+  const diskonTipe = transaksiData.diskon_tipe || 'nominal';
+  const diskonNilai = Number(transaksiData.diskon_nilai) || 0;
+  const diskonId = transaksiData.diskon_id || null;
+  const diskonNama = (transaksiData.diskon_nama || '').trim() || null;
+  let diskonNominal = Number(transaksiData.diskon) || 0;
+  if (!diskonNominal && diskonNilai > 0) {
+    if (diskonTipe === 'persen') {
+      diskonNominal = Math.round((rawSubtotal * diskonNilai) / 100);
+    } else {
+      diskonNominal = Math.min(rawSubtotal, diskonNilai);
+    }
+  }
+  const totalSetor = Math.max(0, transaksiData.total !== undefined ? Number(transaksiData.total) : (rawSubtotal - diskonNominal));
   const bayar = Number(transaksiData.bayar) || (status === 'pending' ? 0 : totalSetor);
   const kembalian = Math.max(0, bayar - totalSetor);
   const tanggal = transaksiData.tanggal || new Date().toISOString();
@@ -197,6 +233,12 @@ export async function POST(req) {
           user_id: validUserId,
           seller,
           tanggal,
+          subtotal: rawSubtotal,
+          diskon: diskonNominal,
+          diskon_tipe: diskonTipe,
+          diskon_nilai: diskonNilai,
+          diskon_id: diskonId,
+          diskon_nama: diskonNama,
           total: totalSetor,
           bayar,
           kembalian,
@@ -253,6 +295,12 @@ export async function POST(req) {
       return NextResponse.json({
         ...newTrx,
         kasir,
+        subtotal: rawSubtotal,
+        diskon: diskonNominal,
+        diskon_tipe: diskonTipe,
+        diskon_nilai: diskonNilai,
+        diskon_id: diskonId,
+        diskon_nama: diskonNama,
         total_setor: totalSetor,
         total_modal: Math.round(totalSetor * 0.6),
         total_laba: Math.round(totalSetor * 0.4),
@@ -296,6 +344,12 @@ export async function POST(req) {
     no_transaksi,
     seller,
     tanggal,
+    subtotal: rawSubtotal,
+    diskon: diskonNominal,
+    diskon_tipe: diskonTipe,
+    diskon_nilai: diskonNilai,
+    diskon_id: diskonId,
+    diskon_nama: diskonNama,
     total: totalSetor,
     total_setor: totalSetor,
     total_modal: totalModal,
@@ -366,7 +420,7 @@ export async function PUT(req) {
     const wasPending = currentTx.status === 'pending';
     const isNowSelesai = newStatus === 'selesai';
 
-    let totalSetor = 0;
+    let rawSubtotal = 0;
     let totalModal = 0;
 
     const updatedDetails = (rawItems || []).map((item, idx) => {
@@ -377,7 +431,7 @@ export async function PUT(req) {
       const subtotal = qty * hargaSatuan;
       const subtotalModal = qty * hargaModal;
 
-      totalSetor += subtotal;
+      rawSubtotal += subtotal;
       totalModal += subtotalModal;
 
       return {
@@ -394,6 +448,19 @@ export async function PUT(req) {
       };
     });
 
+    const diskonTipe = body.diskon_tipe || transaksiData?.diskon_tipe || currentTx.diskon_tipe || 'nominal';
+    const diskonNilai = Number(body.diskon_nilai ?? transaksiData?.diskon_nilai ?? currentTx.diskon_nilai ?? 0);
+    const diskonId = body.diskon_id !== undefined ? body.diskon_id : (transaksiData?.diskon_id !== undefined ? transaksiData.diskon_id : (currentTx.diskon_id || null));
+    const diskonNama = body.diskon_nama !== undefined ? body.diskon_nama : (transaksiData?.diskon_nama !== undefined ? transaksiData.diskon_nama : (currentTx.diskon_nama || null));
+    let diskonNominal = Number(body.diskon ?? transaksiData?.diskon ?? currentTx.diskon ?? 0);
+    if (!diskonNominal && diskonNilai > 0) {
+      if (diskonTipe === 'persen') {
+        diskonNominal = Math.round((rawSubtotal * diskonNilai) / 100);
+      } else {
+        diskonNominal = Math.min(rawSubtotal, diskonNilai);
+      }
+    }
+    const totalSetor = Math.max(0, (body.total !== undefined || transaksiData?.total !== undefined) ? Number(body.total ?? transaksiData?.total) : (rawSubtotal - diskonNominal));
     const totalLaba = totalSetor - totalModal;
     const finalBayar = Number(body.bayar ?? transaksiData?.bayar ?? totalSetor);
     const finalKembalian = Math.max(0, finalBayar - totalSetor);
@@ -404,6 +471,12 @@ export async function PUT(req) {
     const finalKasir = body.kasir || transaksiData?.kasir || currentTx.kasir;
 
     // Perbarui transaksi induk di memori
+    currentTx.subtotal = rawSubtotal;
+    currentTx.diskon = diskonNominal;
+    currentTx.diskon_tipe = diskonTipe;
+    currentTx.diskon_nilai = diskonNilai;
+    currentTx.diskon_id = diskonId;
+    currentTx.diskon_nama = diskonNama;
     currentTx.total = totalSetor;
     currentTx.total_setor = totalSetor;
     currentTx.total_modal = totalModal;
@@ -437,6 +510,12 @@ export async function PUT(req) {
         await supabaseAdmin
           .from('transaksi')
           .update({
+            subtotal: rawSubtotal,
+            diskon: diskonNominal,
+            diskon_tipe: diskonTipe,
+            diskon_nilai: diskonNilai,
+            diskon_id: diskonId,
+            diskon_nama: diskonNama,
             total: totalSetor,
             bayar: finalBayar,
             kembalian: finalKembalian,

@@ -24,8 +24,10 @@ import {
   IconQrCode,
   IconCreditCard,
   IconEdit,
-  IconAlertCircle
+  IconAlertCircle,
+  IconTag
 } from '../../components/ui/icons';
+import ReceiptModal from './ReceiptModal';
 
 export default function KasirPage() {
   const router = useRouter();
@@ -33,7 +35,7 @@ export default function KasirPage() {
   const [kategori, setKategori] = useState([]);
   const [activeKategori, setActiveKategori] = useState(null);
   const [searchProduk, setSearchProduk] = useState('');
-  
+
   const [order, setOrder] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -49,6 +51,17 @@ export default function KasirPage() {
   const [customSeller, setCustomSeller] = useState('');
   const [keterangan, setKeterangan] = useState('');
   const [processing, setProcessing] = useState(false);
+
+  // Diskon State
+  const [diskonList, setDiskonList] = useState([]);
+  const [selectedDiskonId, setSelectedDiskonId] = useState('');
+  const [diskonNama, setDiskonNama] = useState('');
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [diskonTipe, setDiskonTipe] = useState('nominal'); // 'nominal' | 'persen'
+  const [diskonNilai, setDiskonNilai] = useState(0);
+  const [tempDiskonTipe, setTempDiskonTipe] = useState('nominal');
+  const [tempDiskonNilai, setTempDiskonNilai] = useState('');
+  const [discountError, setDiscountError] = useState('');
 
   // Pending State
   const [pendingCount, setPendingCount] = useState(0);
@@ -74,6 +87,10 @@ export default function KasirPage() {
   const [editItems, setEditItems] = useState([]);
   const [editSeller, setEditSeller] = useState('Umum / Retail');
   const [editMetode, setEditMetode] = useState('tunai');
+  const [editDiskonId, setEditDiskonId] = useState('');
+  const [editDiskonNama, setEditDiskonNama] = useState('');
+  const [editDiskonTipe, setEditDiskonTipe] = useState('nominal');
+  const [editDiskonNilai, setEditDiskonNilai] = useState(0);
   const [editBayar, setEditBayar] = useState(0);
   const [editKeterangan, setEditKeterangan] = useState('');
   const [editProductToAdd, setEditProductToAdd] = useState('');
@@ -171,6 +188,18 @@ export default function KasirPage() {
     }
   };
 
+  const loadDiskonList = async () => {
+    try {
+      const res = await fetch('/api/diskon?active_only=true');
+      const data = await res.json();
+      if (data && Array.isArray(data.diskon)) {
+        setDiskonList(data.diskon);
+      }
+    } catch (e) {
+      console.error('Error load diskon list:', e);
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
     // Check auth (kasir & admin diperbolehkan)
@@ -196,10 +225,14 @@ export default function KasirPage() {
       fetch('/api/kategori').then(r => r.json()),
       fetch('/api/sellers').then(r => r.json()).catch(() => ({})),
       fetch('/api/transaksi?status=pending&limit=100').then(r => r.json()).catch(() => []),
-      fetch('/api/booth?active_only=true').then(r => r.json()).catch(() => [])
-    ]).then(([prodRes, katRes, sellerRes, pendingRes, boothRes]) => {
+      fetch('/api/booth?active_only=true').then(r => r.json()).catch(() => []),
+      fetch('/api/diskon?active_only=true').then(r => r.json()).catch(() => ({}))
+    ]).then(([prodRes, katRes, sellerRes, pendingRes, boothRes, diskonRes]) => {
       setProduk(Array.isArray(prodRes) ? prodRes : []);
       setKategori(Array.isArray(katRes) ? katRes : []);
+      if (diskonRes && Array.isArray(diskonRes.diskon)) {
+        setDiskonList(diskonRes.diskon);
+      }
       if (sellerRes && Array.isArray(sellerRes.sellers)) {
         const names = sellerRes.sellers.map(s => s.nama);
         if (!names.includes('Lainnya (Kustom)')) names.push('Lainnya (Kustom)');
@@ -238,18 +271,18 @@ export default function KasirPage() {
     setOrder(prev => {
       const existing = prev.find(item => getOrderItemKey(item) === itemKey);
       if (existing) {
-        return prev.map(item => 
+        return prev.map(item =>
           getOrderItemKey(item) === itemKey
             ? { ...item, qty: item.qty + 1 }
             : item
         );
       }
-      return [...prev, { 
+      return [...prev, {
         order_item_key: itemKey,
-        produk_id: product.id, 
+        produk_id: product.id,
         kemasan: kemasan || null,
-        nama: itemNama, 
-        harga_satuan: itemHarga, 
+        nama: itemNama,
+        harga_satuan: itemHarga,
         qty: 1,
         image_url: product.image_url || null
       }];
@@ -272,8 +305,92 @@ export default function KasirPage() {
     setOrder(prev => prev.filter(o => getOrderItemKey(o) !== targetKey));
   };
 
-  const total = order.reduce((sum, item) => sum + (item.qty * item.harga_satuan), 0);
+  const calculateDiskonNominal = (sub, tipe, nilai) => {
+    const num = Math.max(0, Number(nilai) || 0);
+    if (num <= 0 || sub <= 0) return 0;
+    if (tipe === 'persen') {
+      const pct = Math.min(100, num);
+      return Math.round((sub * pct) / 100);
+    }
+    return Math.min(sub, num);
+  };
+
+  const subtotal = order.reduce((sum, item) => sum + (item.qty * item.harga_satuan), 0);
   const totalQty = order.reduce((sum, item) => sum + item.qty, 0);
+  const diskonNominal = calculateDiskonNominal(subtotal, diskonTipe, diskonNilai);
+  const total = Math.max(0, subtotal - diskonNominal);
+
+  const handleSelectDiskon = (promoId) => {
+    if (!promoId) {
+      setSelectedDiskonId('');
+      setDiskonNama('');
+      setDiskonTipe('nominal');
+      setDiskonNilai(0);
+      return;
+    }
+    const promo = diskonList.find(d => d.id === promoId);
+    if (promo) {
+      setSelectedDiskonId(promo.id);
+      setDiskonNama(promo.nama);
+      setDiskonTipe(promo.tipe || 'nominal');
+      setDiskonNilai(Number(promo.nilai) || 0);
+    }
+  };
+
+  const handleSelectEditDiskon = (promoId) => {
+    if (!promoId) {
+      setEditDiskonId('');
+      setEditDiskonNama('');
+      setEditDiskonTipe('nominal');
+      setEditDiskonNilai(0);
+      return;
+    }
+    const promo = diskonList.find(d => d.id === promoId);
+    if (promo) {
+      const tipe = promo.tipe || 'nominal';
+      const nilai = Number(promo.nilai) || 0;
+      setEditDiskonId(promo.id);
+      setEditDiskonNama(promo.nama);
+      setEditDiskonTipe(tipe);
+      setEditDiskonNilai(nilai);
+    }
+  };
+
+  const openDiscountModal = () => {
+    setTempDiskonTipe(diskonTipe);
+    setTempDiskonNilai(diskonNilai > 0 ? String(diskonNilai) : '');
+    setDiscountError('');
+    setShowDiscountModal(true);
+  };
+
+  const applyDiscount = () => {
+    const val = Number(tempDiskonNilai) || 0;
+    if (val < 0) {
+      setDiscountError('Nilai diskon tidak valid.');
+      return;
+    }
+    if (tempDiskonTipe === 'persen' && val > 100) {
+      setDiscountError('Diskon persentase maksimal 100%.');
+      return;
+    }
+    if (tempDiskonTipe === 'nominal' && val > subtotal) {
+      setDiscountError(`Diskon nominal tidak boleh melebihi subtotal (Rp ${subtotal.toLocaleString('id-ID')}).`);
+      return;
+    }
+    setDiskonTipe(tempDiskonTipe);
+    setDiskonNilai(val);
+    setShowDiscountModal(false);
+    setDiscountError('');
+  };
+
+  const removeDiscount = () => {
+    setSelectedDiskonId('');
+    setDiskonNama('');
+    setDiskonTipe('nominal');
+    setDiskonNilai(0);
+    setShowDiscountModal(false);
+    setDiscountError('');
+  };
 
   const getEffectiveSeller = () => {
     if (seller === 'Lainnya (Kustom)') {
@@ -296,6 +413,12 @@ export default function KasirPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           transaksiData: {
+            subtotal,
+            diskon: diskonNominal,
+            diskon_tipe: diskonTipe,
+            diskon_nilai: diskonNilai,
+            diskon_id: selectedDiskonId || null,
+            diskon_nama: diskonNama || null,
             total,
             bayar: total,
             metode_bayar: metodeBayar,
@@ -310,13 +433,17 @@ export default function KasirPage() {
           kasirNama: kasirNama
         })
       });
-      
+
       if (res.ok) {
         const txResult = await res.json();
         setCompletedTx({
           no_transaksi: txResult.no_transaksi || 'TRX-SUCCESS',
           tanggal: new Date().toISOString(),
           items: [...order],
+          subtotal,
+          diskon: diskonNominal,
+          diskon_tipe: diskonTipe,
+          diskon_nilai: diskonNilai,
           total,
           bayar: total,
           metode_bayar: metodeBayar,
@@ -325,6 +452,9 @@ export default function KasirPage() {
           kasir: kasirNama
         });
         setOrder([]);
+        setSelectedDiskonId('');
+        setDiskonNama('');
+        setDiskonNilai(0);
         setKeterangan('');
         setShowPayment(false);
         setShowReceipt(true);
@@ -354,6 +484,12 @@ export default function KasirPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           transaksiData: {
+            subtotal,
+            diskon: diskonNominal,
+            diskon_tipe: diskonTipe,
+            diskon_nilai: diskonNilai,
+            diskon_id: selectedDiskonId || null,
+            diskon_nama: diskonNama || null,
             total,
             bayar: 0,
             metode_bayar: 'tunai',
@@ -371,6 +507,9 @@ export default function KasirPage() {
 
       if (res.ok) {
         setOrder([]);
+        setSelectedDiskonId('');
+        setDiskonNama('');
+        setDiskonNilai(0);
         setKeterangan('');
         setPendingNote('');
         setShowPendingModal(false);
@@ -444,8 +583,14 @@ export default function KasirPage() {
     setEditSeller(tx.seller || 'Umum / Retail');
     setEditMetode(tx.metode_bayar || 'tunai');
     setEditKeterangan(tx.keterangan || '');
-    const currentTotal = initialItems.reduce((sum, it) => sum + (it.qty * it.harga_satuan), 0);
-    setEditBayar(currentTotal);
+    setEditDiskonId(tx.diskon_id || '');
+    setEditDiskonNama(tx.diskon_nama || '');
+    setEditDiskonTipe(tx.diskon_tipe || 'nominal');
+    setEditDiskonNilai(Number(tx.diskon_nilai) || 0);
+    const initialSubtotal = initialItems.reduce((sum, it) => sum + (it.qty * it.harga_satuan), 0);
+    const initialDiskon = calculateDiskonNominal(initialSubtotal, tx.diskon_tipe || 'nominal', Number(tx.diskon_nilai) || 0);
+    const initialTotal = Math.max(0, initialSubtotal - initialDiskon);
+    setEditBayar(initialTotal);
     setEditProductToAdd('');
   };
 
@@ -491,7 +636,9 @@ export default function KasirPage() {
     setEditProductToAdd('');
   };
 
-  const editTotal = editItems.reduce((sum, it) => sum + (it.qty * it.harga_satuan), 0);
+  const editSubtotal = editItems.reduce((sum, it) => sum + (it.qty * it.harga_satuan), 0);
+  const editDiskonNominal = calculateDiskonNominal(editSubtotal, editDiskonTipe, editDiskonNilai);
+  const editTotal = Math.max(0, editSubtotal - editDiskonNominal);
 
   // Selesaikan Transaksi Pending & Potong Stok
   const handleFinishCompletePending = async () => {
@@ -509,6 +656,12 @@ export default function KasirPage() {
           id: editingTx.id,
           detailItems: editItems,
           transaksiData: {
+            subtotal: editSubtotal,
+            diskon: editDiskonNominal,
+            diskon_tipe: editDiskonTipe,
+            diskon_nilai: editDiskonNilai,
+            diskon_id: editDiskonId || null,
+            diskon_nama: editDiskonNama || null,
             total: editTotal,
             bayar: finalBayar,
             metode_bayar: editMetode,
@@ -529,6 +682,10 @@ export default function KasirPage() {
             ...it,
             subtotal: it.qty * it.harga_satuan
           })),
+          subtotal: editSubtotal,
+          diskon: editDiskonNominal,
+          diskon_tipe: editDiskonTipe,
+          diskon_nilai: editDiskonNilai,
           total: editTotal,
           bayar: finalBayar,
           kembalian: Math.max(0, finalBayar - editTotal),
@@ -612,15 +769,15 @@ export default function KasirPage() {
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-bg-light)', position: 'relative' }}>
-      
+
       {/* Header POS Kasir */}
-      <header style={{ 
-        padding: '0.65rem 1.25rem', 
-        borderBottom: '1px solid var(--border-subtle)', 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        backgroundColor: 'var(--surface-panel)', 
+      <header style={{
+        padding: '0.65rem 1.25rem',
+        borderBottom: '1px solid var(--border-subtle)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: 'var(--surface-panel)',
         gap: '0.75rem',
         flexWrap: 'wrap'
       }}>
@@ -640,11 +797,11 @@ export default function KasirPage() {
             <IconMilk size={18} />
           </div>
           <div>
-            <h1 style={{ 
-              fontSize: '0.9375rem', 
-              fontWeight: 700, 
-              letterSpacing: '-0.01em', 
-              margin: 0, 
+            <h1 style={{
+              fontSize: '0.9375rem',
+              fontWeight: 700,
+              letterSpacing: '-0.01em',
+              margin: 0,
               color: 'var(--text-primary)',
               whiteSpace: 'nowrap'
             }}>
@@ -658,16 +815,16 @@ export default function KasirPage() {
 
         {/* Action Toolbar Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          
+
           {/* Tombol Pop-up Riwayat Transaksi */}
-          <button 
+          <button
             type="button"
             onClick={() => { setShowRiwayatModal(true); loadRiwayat(); }}
             className="btn-secondary"
-            style={{ 
-              padding: '0.45rem 0.75rem', 
-              fontSize: '0.75rem', 
-              fontWeight: 600, 
+            style={{
+              padding: '0.45rem 0.75rem',
+              fontSize: '0.75rem',
+              fontWeight: 600,
               gap: '0.4rem',
               backgroundColor: pendingCount > 0 ? 'var(--status-warning-bg)' : 'var(--surface-panel)',
               borderColor: pendingCount > 0 ? 'var(--status-warning-border)' : 'var(--border-subtle)',
@@ -677,12 +834,12 @@ export default function KasirPage() {
             <IconReceipt size={14} />
             <span>Riwayat Transaksi</span>
             {pendingCount > 0 && (
-              <span style={{ 
-                backgroundColor: 'var(--status-warning)', 
-                color: '#ffffff', 
-                padding: '0.1rem 0.45rem', 
-                borderRadius: 'var(--radius-full)', 
-                fontSize: '0.65rem', 
+              <span style={{
+                backgroundColor: 'var(--status-warning)',
+                color: '#ffffff',
+                padding: '0.1rem 0.45rem',
+                borderRadius: 'var(--radius-full)',
+                fontSize: '0.65rem',
                 fontWeight: 700,
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -713,6 +870,26 @@ export default function KasirPage() {
             </button>
           )}
 
+          {/* Tombol Kelola Diskon (Hanya muncul jika user role admin) */}
+          {mounted && currentUser?.role === 'admin' && (
+            <button
+              type="button"
+              onClick={() => router.push('/admin/diskon')}
+              className="btn-secondary"
+              style={{
+                padding: '0.45rem 0.75rem',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                color: 'var(--terracotta)',
+                gap: '0.35rem'
+              }}
+              title="Kelola Diskon & Promo Penjualan (Khusus Admin)"
+            >
+              <IconTag size={14} />
+              <span>Kelola Diskon</span>
+            </button>
+          )}
+
           {/* Dropdown Booth Penjualan Kasir di Header */}
           <div style={{
             display: 'inline-flex',
@@ -733,7 +910,7 @@ export default function KasirPage() {
                 setCurrentUser(updatedUser);
                 try {
                   localStorage.setItem('user', JSON.stringify(updatedUser));
-                } catch (err) {}
+                } catch (err) { }
               }}
               style={{
                 fontSize: '0.75rem',
@@ -769,8 +946,8 @@ export default function KasirPage() {
             <span>{mounted && currentUser?.nama ? currentUser.nama : 'Kasir'}</span>
           </span>
 
-          <button 
-            onClick={handleLogout} 
+          <button
+            onClick={handleLogout}
             className="btn-secondary"
             style={{ padding: '0.45rem 0.65rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}
             title="Keluar / Ganti Akun"
@@ -783,13 +960,13 @@ export default function KasirPage() {
 
       {/* Mobile Tab Switcher */}
       <div className="kasir-mobile-tabs" style={{ display: 'none', backgroundColor: 'var(--surface-subtle)', borderBottom: '1px solid var(--border-subtle)', padding: '0.5rem 0.75rem', gap: '0.5rem' }}>
-        <button 
+        <button
           onClick={() => setMobileTab('menu')}
-          style={{ 
-            flex: 1, 
-            padding: '0.65rem 0.5rem', 
-            borderRadius: 'var(--radius-md)', 
-            fontWeight: 600, 
+          style={{
+            flex: 1,
+            padding: '0.65rem 0.5rem',
+            borderRadius: 'var(--radius-md)',
+            fontWeight: 600,
             fontSize: '0.8125rem',
             backgroundColor: mobileTab === 'menu' ? 'var(--surface-panel)' : 'transparent',
             color: mobileTab === 'menu' ? 'var(--text-primary)' : 'var(--text-secondary)',
@@ -804,13 +981,13 @@ export default function KasirPage() {
           <IconMilk size={15} />
           <span>Menu Produk ({filteredProduk.length})</span>
         </button>
-        <button 
+        <button
           onClick={() => setMobileTab('cart')}
-          style={{ 
-            flex: 1, 
-            padding: '0.65rem 0.5rem', 
-            borderRadius: 'var(--radius-md)', 
-            fontWeight: 600, 
+          style={{
+            flex: 1,
+            padding: '0.65rem 0.5rem',
+            borderRadius: 'var(--radius-md)',
+            fontWeight: 600,
             fontSize: '0.8125rem',
             backgroundColor: mobileTab === 'cart' ? 'var(--surface-panel)' : 'transparent',
             color: mobileTab === 'cart' ? 'var(--text-primary)' : 'var(--text-secondary)',
@@ -830,16 +1007,16 @@ export default function KasirPage() {
 
       {/* Main Layout */}
       <main style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
-        
+
         {/* Left Side: Product Selection & Filters */}
-        <section 
+        <section
           className={`kasir-menu-section ${mobileTab === 'menu' ? 'active-mobile' : ''}`}
-          style={{ flex: 2, display: 'flex', flexDirection: 'column', backgroundColor: 'var(--surface-canvas)', borderRight: '1px solid var(--border-subtle)' }}
+          style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', backgroundColor: 'var(--surface-canvas)', borderRight: '1px solid var(--border-subtle)', overflow: 'hidden' }}
         >
           {/* Search & Category Filter Toolbar */}
           <div style={{ padding: '0.85rem 1.25rem', borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'var(--surface-panel)', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
             <div style={{ position: 'relative' }}>
-              <input 
+              <input
                 type="text"
                 className="input-field"
                 placeholder="Cari menu produk atau kategori..."
@@ -854,15 +1031,15 @@ export default function KasirPage() {
 
             {/* Category Filter Pills */}
             <div className="no-scrollbar" style={{ display: 'flex', overflowX: 'auto', gap: '0.35rem', paddingBottom: '0.1rem', WebkitOverflowScrolling: 'touch' }}>
-              <button 
+              <button
                 onClick={() => setActiveKategori(null)}
-                style={{ 
-                  padding: '0.35rem 0.75rem', 
-                  borderRadius: 'var(--radius-full)', 
+                style={{
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: 'var(--radius-full)',
                   border: '1px solid',
-                  borderColor: activeKategori === null ? 'var(--accent-primary)' : 'var(--border-subtle)', 
-                  backgroundColor: activeKategori === null ? 'var(--accent-primary)' : 'var(--surface-panel)', 
-                  color: activeKategori === null ? 'var(--text-inverse)' : 'var(--text-secondary)', 
+                  borderColor: activeKategori === null ? 'var(--accent-primary)' : 'var(--border-subtle)',
+                  backgroundColor: activeKategori === null ? 'var(--accent-primary)' : 'var(--surface-panel)',
+                  color: activeKategori === null ? 'var(--text-inverse)' : 'var(--text-secondary)',
                   fontWeight: 600,
                   fontSize: '0.75rem',
                   whiteSpace: 'nowrap',
@@ -875,16 +1052,16 @@ export default function KasirPage() {
               {kategori.map(k => {
                 const isActive = activeKategori === k.id;
                 return (
-                  <button 
+                  <button
                     key={k.id}
                     onClick={() => setActiveKategori(k.id)}
-                    style={{ 
-                      padding: '0.35rem 0.75rem', 
-                      borderRadius: 'var(--radius-full)', 
+                    style={{
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: 'var(--radius-full)',
                       border: '1px solid',
-                      borderColor: isActive ? 'var(--accent-primary)' : 'var(--border-subtle)', 
-                      backgroundColor: isActive ? 'var(--accent-primary)' : 'var(--surface-panel)', 
-                      color: isActive ? 'var(--text-inverse)' : 'var(--text-secondary)', 
+                      borderColor: isActive ? 'var(--accent-primary)' : 'var(--border-subtle)',
+                      backgroundColor: isActive ? 'var(--accent-primary)' : 'var(--surface-panel)',
+                      color: isActive ? 'var(--text-inverse)' : 'var(--text-secondary)',
                       fontWeight: 600,
                       fontSize: '0.75rem',
                       whiteSpace: 'nowrap',
@@ -901,10 +1078,10 @@ export default function KasirPage() {
 
           {/* Product Grid */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', paddingBottom: '5rem' }}>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', 
-              gap: '0.85rem' 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+              gap: '0.85rem'
             }}>
               {filteredProduk.map(p => {
                 const hasPackaging = hasPackagingOption(p);
@@ -912,7 +1089,7 @@ export default function KasirPage() {
                 const inCartQty = inCartItems.reduce((sum, item) => sum + item.qty, 0);
 
                 return (
-                  <div 
+                  <div
                     key={p.id}
                     onClick={() => {
                       if (hasPackaging) {
@@ -922,10 +1099,10 @@ export default function KasirPage() {
                       }
                     }}
                     className="card"
-                    style={{ 
-                      padding: 0, 
-                      display: 'flex', 
-                      flexDirection: 'column', 
+                    style={{
+                      padding: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
                       justifyContent: 'space-between',
                       cursor: 'pointer',
                       border: inCartQty > 0 ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
@@ -949,9 +1126,9 @@ export default function KasirPage() {
                       justifyContent: 'center'
                     }}>
                       {p.image_url ? (
-                        <img 
-                          src={p.image_url} 
-                          alt={p.nama} 
+                        <img
+                          src={p.image_url}
+                          alt={p.nama}
                           loading="lazy"
                           style={{
                             width: '100%',
@@ -975,20 +1152,20 @@ export default function KasirPage() {
                       )}
 
                       {inCartQty > 0 && (
-                        <span style={{ 
-                          position: 'absolute', 
-                          top: '0.45rem', 
-                          right: '0.45rem', 
-                          backgroundColor: 'var(--accent-primary)', 
-                          color: 'var(--text-inverse)', 
-                          borderRadius: 'var(--radius-full)', 
-                          minWidth: '22px', 
-                          height: '22px', 
+                        <span style={{
+                          position: 'absolute',
+                          top: '0.45rem',
+                          right: '0.45rem',
+                          backgroundColor: 'var(--accent-primary)',
+                          color: 'var(--text-inverse)',
+                          borderRadius: 'var(--radius-full)',
+                          minWidth: '22px',
+                          height: '22px',
                           padding: '0 0.35rem',
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center', 
-                          fontSize: '0.6875rem', 
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.6875rem',
                           fontWeight: 700,
                           boxShadow: 'var(--shadow-sm)',
                           zIndex: 2
@@ -999,20 +1176,20 @@ export default function KasirPage() {
                     </div>
 
                     {/* Informasi Produk */}
-                    <div style={{ 
-                      padding: '0.75rem', 
-                      display: 'flex', 
-                      flexDirection: 'column', 
+                    <div style={{
+                      padding: '0.75rem',
+                      display: 'flex',
+                      flexDirection: 'column',
                       justifyContent: 'space-between',
                       flex: 1,
                       gap: '0.5rem'
                     }}>
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.25rem' }}>
-                          <span style={{ 
-                            fontSize: '0.625rem', 
-                            fontWeight: 600, 
-                            color: 'var(--text-secondary)', 
+                          <span style={{
+                            fontSize: '0.625rem',
+                            fontWeight: 600,
+                            color: 'var(--text-secondary)',
                             textTransform: 'uppercase',
                             letterSpacing: '0.04em',
                             display: 'block',
@@ -1028,11 +1205,11 @@ export default function KasirPage() {
                             </span>
                           )}
                         </div>
-                        <h3 style={{ 
-                          fontSize: '0.8125rem', 
-                          fontWeight: 600, 
-                          margin: '0.15rem 0 0 0', 
-                          lineHeight: 1.35, 
+                        <h3 style={{
+                          fontSize: '0.8125rem',
+                          fontWeight: 600,
+                          margin: '0.15rem 0 0 0',
+                          lineHeight: 1.35,
                           color: 'var(--text-primary)',
                           display: '-webkit-box',
                           WebkitLineClamp: 2,
@@ -1060,13 +1237,13 @@ export default function KasirPage() {
         </section>
 
         {/* Right Side: Order Summary Cart */}
-        <section 
+        <section
           className={`kasir-cart-section ${mobileTab === 'cart' ? 'active-mobile' : ''}`}
-          style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: 'var(--surface-panel)', minWidth: '360px' }}
+          style={{ width: '380px', minWidth: '320px', maxWidth: '420px', flexShrink: 0, display: 'flex', flexDirection: 'column', backgroundColor: 'var(--surface-panel)', borderLeft: '1px solid var(--border-subtle)' }}
         >
           <div style={{ padding: '0.85rem 1.25rem', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <button 
+              <button
                 onClick={() => setMobileTab('menu')}
                 className="kasir-back-to-menu-btn"
                 style={{ display: 'none', padding: '0.25rem 0.5rem', fontSize: '0.75rem', fontWeight: 600, border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)' }}
@@ -1079,8 +1256,8 @@ export default function KasirPage() {
             </div>
 
             {order.length > 0 && (
-              <button 
-                onClick={() => setOrder([])} 
+              <button
+                onClick={() => setOrder([])}
                 style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--status-danger)', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
               >
                 <IconTrash size={13} />
@@ -1088,7 +1265,7 @@ export default function KasirPage() {
               </button>
             )}
           </div>
-          
+
           <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem 1.25rem' }}>
             {order.length === 0 ? (
               <div style={{ color: 'var(--text-secondary)', textAlign: 'center', marginTop: '3.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
@@ -1109,9 +1286,9 @@ export default function KasirPage() {
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', margin: 0, maxWidth: '240px' }}>
                   Pilih produk dari menu di sebelah kiri untuk menambahkan ke pesanan
                 </p>
-                <button 
+                <button
                   onClick={() => setMobileTab('menu')}
-                  className="btn-secondary" 
+                  className="btn-secondary"
                   style={{ marginTop: '0.75rem', padding: '0.5rem 0.85rem', fontSize: '0.75rem' }}
                 >
                   Pilih Menu
@@ -1134,8 +1311,8 @@ export default function KasirPage() {
                     flexShrink: 0
                   }}>
                     {item.image_url ? (
-                      <img 
-                        src={item.image_url} 
+                      <img
+                        src={item.image_url}
                         alt={item.nama}
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         loading="lazy"
@@ -1153,23 +1330,23 @@ export default function KasirPage() {
                     </p>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
-                    <button 
-                      onClick={() => updateQty(item, -1)} 
+                    <button
+                      onClick={() => updateQty(item, -1)}
                       style={{ width: '28px', height: '28px', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', backgroundColor: 'var(--surface-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       aria-label="Kurangi kuantitas"
                     >
                       <IconMinus size={12} />
                     </button>
                     <span className="tabular" style={{ width: '24px', textAlign: 'center', fontWeight: 700, fontSize: '0.8125rem' }}>{item.qty}</span>
-                    <button 
-                      onClick={() => updateQty(item, 1)} 
+                    <button
+                      onClick={() => updateQty(item, 1)}
                       style={{ width: '28px', height: '28px', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', backgroundColor: 'var(--surface-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       aria-label="Tambah kuantitas"
                     >
                       <IconPlus size={12} />
                     </button>
-                    <button 
-                      onClick={() => deleteItem(item)} 
+                    <button
+                      onClick={() => deleteItem(item)}
                       style={{ width: '28px', height: '28px', border: '1px solid var(--border-subtle)', color: 'var(--status-danger)', borderRadius: 'var(--radius-sm)', marginLeft: '0.25rem', cursor: 'pointer', backgroundColor: 'var(--surface-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       aria-label="Hapus dari keranjang"
                     >
@@ -1187,29 +1364,86 @@ export default function KasirPage() {
               <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Total Kuantitas</span>
               <span className="tabular" style={{ fontSize: '0.75rem', fontWeight: 600 }}>{totalQty} item</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1rem' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>Total Pembayaran</span>
-              <span className="tabular" style={{ fontSize: '1.375rem', fontWeight: 700, color: 'var(--accent-primary)', letterSpacing: '-0.02em' }}>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Subtotal Produk</span>
+              <span className="tabular" style={{ fontSize: '0.75rem', fontWeight: 600 }}>Rp {subtotal.toLocaleString('id-ID')}</span>
+            </div>
+
+            {/* Diskon Transaksi Row */}
+            {diskonNominal > 0 ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', backgroundColor: 'var(--terracotta-subtle)', padding: '0.35rem 0.55rem', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--terracotta-border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--terracotta)', minWidth: 0 }}>
+                  <IconTag size={13} style={{ flexShrink: 0 }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '170px' }} title={diskonNama || 'Diskon'}>
+                    {diskonNama || `Diskon ${diskonTipe === 'persen' ? `(${diskonNilai}%)` : ''}`}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                  <span className="tabular" style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--terracotta)' }}>
+                    - Rp {diskonNominal.toLocaleString('id-ID')}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={removeDiscount}
+                    title="Hapus promo ini"
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                  >
+                    <IconX size={13} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              order.length > 0 && diskonList.length > 0 && (
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <select
+                    value={selectedDiskonId}
+                    onChange={(e) => handleSelectDiskon(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.3rem 0.5rem',
+                      fontSize: '0.75rem',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px dashed var(--border-subtle)',
+                      backgroundColor: 'var(--surface-sunken)',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="">🏷️ Gunakan Promo / Diskon...</option>
+                    {diskonList.map(d => (
+                      <option key={d.id} value={d.id}>
+                        {d.nama} ({d.tipe === 'persen' ? `${d.nilai}%` : `Rp ${Number(d.nilai).toLocaleString('id-ID')}`})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1rem', paddingTop: '0.35rem', borderTop: '1px solid var(--border-subtle)' }}>
+              <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-primary)' }}>Total Pembayaran</span>
+              <span className="tabular" style={{ fontSize: '1.375rem', fontWeight: 800, color: 'var(--accent-primary)', letterSpacing: '-0.02em' }}>
                 Rp {total.toLocaleString('id-ID')}
               </span>
             </div>
 
             {/* Action Buttons */}
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button 
+              <button
                 type="button"
                 className="btn-secondary"
-                style={{ 
-                  flex: 1, 
-                  padding: '0.75rem 0.5rem', 
-                  fontSize: '0.8125rem', 
+                style={{
+                  flex: 1,
+                  padding: '0.75rem 0.5rem',
+                  fontSize: '0.8125rem',
                   fontWeight: 600,
                   backgroundColor: 'var(--surface-panel)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '0.35rem'
-                }} 
+                }}
                 disabled={order.length === 0 || processing || savingPending}
                 onClick={() => { setPendingNote(''); setShowPendingModal(true); }}
               >
@@ -1217,10 +1451,10 @@ export default function KasirPage() {
                 <span>Tahan (Hold)</span>
               </button>
 
-              <button 
+              <button
                 type="button"
-                className="btn-primary" 
-                style={{ flex: 1.6, padding: '0.75rem', fontSize: '0.8125rem', justifyContent: 'center' }} 
+                className="btn-primary"
+                style={{ flex: 1.6, padding: '0.75rem', fontSize: '0.8125rem', justifyContent: 'center' }}
                 disabled={order.length === 0 || processing || savingPending}
                 onClick={() => setShowPayment(true)}
               >
@@ -1233,7 +1467,7 @@ export default function KasirPage() {
       </main>
 
       <style jsx global>{`
-        @media (max-width: 850px) {
+        @media (max-width: 960px) {
           .kasir-mobile-tabs {
             display: flex !important;
           }
@@ -1244,14 +1478,21 @@ export default function KasirPage() {
           .kasir-menu-section.active-mobile {
             display: flex !important;
             flex: 1 !important;
+            min-width: 100% !important;
           }
           .kasir-cart-section {
             display: none !important;
+            width: 100% !important;
             min-width: 100% !important;
+            max-width: 100% !important;
+            border-left: none !important;
           }
           .kasir-cart-section.active-mobile {
             display: flex !important;
             flex: 1 !important;
+            width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
           }
           .kasir-back-to-menu-btn {
             display: inline-block !important;
@@ -1283,8 +1524,8 @@ export default function KasirPage() {
                   Tahan Pesanan (Hold Order)
                 </h2>
               </div>
-              <button 
-                onClick={() => setShowPendingModal(false)} 
+              <button
+                onClick={() => setShowPendingModal(false)}
                 style={{ color: 'var(--text-tertiary)', padding: '0.25rem', display: 'flex' }}
                 aria-label="Tutup"
               >
@@ -1327,9 +1568,9 @@ export default function KasirPage() {
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
                 Mitra / Seller:
               </label>
-              <select 
-                className="input-field" 
-                value={seller} 
+              <select
+                className="input-field"
+                value={seller}
                 onChange={e => setSeller(e.target.value)}
               >
                 {sellersList.map(s => <option key={s} value={s}>{s}</option>)}
@@ -1340,8 +1581,8 @@ export default function KasirPage() {
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
                 Catatan / Pengingat (No. Meja / Nama Pelanggan):
               </label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 className="input-field"
                 placeholder="Contoh: Meja 4 / Ambil dompet di parkiran / Tunggu teman..."
                 value={pendingNote}
@@ -1350,18 +1591,18 @@ export default function KasirPage() {
             </div>
 
             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-              <button 
-                type="button" 
-                className="btn-secondary" 
+              <button
+                type="button"
+                className="btn-secondary"
                 onClick={() => setShowPendingModal(false)}
                 disabled={savingPending}
                 style={{ flex: 1 }}
               >
                 Batal
               </button>
-              <button 
-                type="button" 
-                className="btn-primary" 
+              <button
+                type="button"
+                className="btn-primary"
                 onClick={handleSavePending}
                 disabled={savingPending}
                 style={{ flex: 1.5, backgroundColor: 'var(--status-warning)', borderColor: 'var(--status-warning)' }}
@@ -1380,7 +1621,7 @@ export default function KasirPage() {
       {showRiwayatModal && (
         <div className="modal-overlay" style={{ zIndex: 1050 }}>
           <div className="modal-content" style={{ maxWidth: '860px', width: '95%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: '1.5rem' }}>
-            
+
             {/* Header Pop-up Riwayat */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
@@ -1405,8 +1646,8 @@ export default function KasirPage() {
                   </p>
                 </div>
               </div>
-              <button 
-                onClick={() => setShowRiwayatModal(false)} 
+              <button
+                onClick={() => setShowRiwayatModal(false)}
                 style={{ color: 'var(--text-tertiary)', padding: '0.25rem', display: 'flex' }}
                 aria-label="Tutup"
               >
@@ -1416,14 +1657,14 @@ export default function KasirPage() {
 
             {/* Alert Banner Pembatalan / Notifikasi */}
             {cancellationNotice && (
-              <div style={{ 
-                marginBottom: '0.85rem', 
-                padding: '0.65rem 0.85rem', 
-                backgroundColor: 'var(--status-success-bg)', 
-                border: '1px solid var(--status-success-border)', 
-                color: 'var(--status-success)', 
-                borderRadius: 'var(--radius-md)', 
-                fontSize: '0.8125rem', 
+              <div style={{
+                marginBottom: '0.85rem',
+                padding: '0.65rem 0.85rem',
+                backgroundColor: 'var(--status-success-bg)',
+                border: '1px solid var(--status-success-border)',
+                color: 'var(--status-success)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '0.8125rem',
                 fontWeight: 600,
                 display: 'flex',
                 alignItems: 'center',
@@ -1437,13 +1678,13 @@ export default function KasirPage() {
             {/* Filter Tabs & Search Bar */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', gap: '0.4rem' }}>
-                <button 
+                <button
                   type="button"
                   onClick={() => setRiwayatTab('pending')}
-                  style={{ 
-                    padding: '0.45rem 0.85rem', 
-                    borderRadius: 'var(--radius-md)', 
-                    fontWeight: 600, 
+                  style={{
+                    padding: '0.45rem 0.85rem',
+                    borderRadius: 'var(--radius-md)',
+                    fontWeight: 600,
                     fontSize: '0.8125rem',
                     border: '1px solid',
                     borderColor: riwayatTab === 'pending' ? 'var(--status-warning-border)' : 'var(--border-subtle)',
@@ -1470,13 +1711,13 @@ export default function KasirPage() {
                   </span>
                 </button>
 
-                <button 
+                <button
                   type="button"
                   onClick={() => setRiwayatTab('selesai')}
-                  style={{ 
-                    padding: '0.45rem 0.85rem', 
-                    borderRadius: 'var(--radius-md)', 
-                    fontWeight: 600, 
+                  style={{
+                    padding: '0.45rem 0.85rem',
+                    borderRadius: 'var(--radius-md)',
+                    fontWeight: 600,
                     fontSize: '0.8125rem',
                     border: '1px solid',
                     borderColor: riwayatTab === 'selesai' ? 'var(--status-success-border)' : 'var(--border-subtle)',
@@ -1505,9 +1746,9 @@ export default function KasirPage() {
               </div>
 
               <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
-                <input 
-                  type="text" 
-                  className="input-field" 
+                <input
+                  type="text"
+                  className="input-field"
                   placeholder="Cari nomor transaksi, mitra, atau catatan..."
                   value={searchRiwayat}
                   onChange={e => setSearchRiwayat(e.target.value)}
@@ -1554,13 +1795,13 @@ export default function KasirPage() {
                     const isPending = tx.status === 'pending';
 
                     return (
-                      <div 
-                        key={tx.id} 
-                        style={{ 
-                          backgroundColor: 'var(--surface-panel)', 
+                      <div
+                        key={tx.id}
+                        style={{
+                          backgroundColor: 'var(--surface-panel)',
                           border: '1px solid',
-                          borderColor: isPending ? 'var(--status-warning-border)' : 'var(--border-subtle)', 
-                          borderRadius: 'var(--radius-md)', 
+                          borderColor: isPending ? 'var(--status-warning-border)' : 'var(--border-subtle)',
+                          borderRadius: 'var(--radius-md)',
                           padding: '0.85rem 1rem',
                           display: 'flex',
                           flexDirection: 'column',
@@ -1614,8 +1855,8 @@ export default function KasirPage() {
                         {/* Baris Tombol Aksi */}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed var(--border-subtle)' }}>
                           {/* Tombol Detail & Ubah Tanggal */}
-                          <button 
-                            type="button" 
+                          <button
+                            type="button"
                             onClick={() => handleOpenDetail(tx)}
                             className="btn-secondary"
                             style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
@@ -1627,8 +1868,8 @@ export default function KasirPage() {
                           {/* Tombol Khusus Transaksi Pending */}
                           {isPending && (
                             <>
-                              <button 
-                                type="button" 
+                              <button
+                                type="button"
                                 onClick={() => setCancelConfirmTx(tx)}
                                 className="btn-danger"
                                 style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
@@ -1636,8 +1877,8 @@ export default function KasirPage() {
                                 <IconTrash size={13} />
                                 <span>Batalkan</span>
                               </button>
-                              <button 
-                                type="button" 
+                              <button
+                                type="button"
                                 onClick={() => handleStartCompletePending(tx)}
                                 className="btn-primary"
                                 style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
@@ -1650,8 +1891,8 @@ export default function KasirPage() {
 
                           {/* Tombol Khusus Transaksi Selesai */}
                           {!isPending && (
-                            <button 
-                              type="button" 
+                            <button
+                              type="button"
                               onClick={() => {
                                 setCompletedTx(tx);
                                 setShowReceipt(true);
@@ -1673,8 +1914,8 @@ export default function KasirPage() {
 
             {/* Footer Modal Riwayat */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-subtle)' }}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setShowRiwayatModal(false)}
                 className="btn-secondary"
                 style={{ padding: '0.5rem 1rem' }}
@@ -1692,7 +1933,7 @@ export default function KasirPage() {
       {selectedDetailTx && (
         <div className="modal-overlay" style={{ zIndex: 1150 }}>
           <div className="modal-content" style={{ maxWidth: '620px', width: '92%', maxHeight: '90vh', overflowY: 'auto' }}>
-            
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.85rem' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
@@ -1703,9 +1944,9 @@ export default function KasirPage() {
                   {selectedDetailTx.no_transaksi}
                 </span>
               </div>
-              <button 
+              <button
                 type="button"
-                onClick={() => setSelectedDetailTx(null)} 
+                onClick={() => setSelectedDetailTx(null)}
                 className="btn-ghost"
                 style={{ width: '32px', height: '32px', padding: 0 }}
                 aria-label="Tutup"
@@ -1755,12 +1996,12 @@ export default function KasirPage() {
             </div>
 
             {/* FITUR UBAH TANGGAL TRANSAKSI */}
-            <div style={{ 
-              marginBottom: '1.25rem', 
-              padding: '0.85rem 1rem', 
-              backgroundColor: 'var(--surface-sunken)', 
-              border: '1px solid var(--border-subtle)', 
-              borderRadius: 'var(--radius-md)' 
+            <div style={{
+              marginBottom: '1.25rem',
+              padding: '0.85rem 1rem',
+              backgroundColor: 'var(--surface-sunken)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-md)'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.25rem' }}>
                 <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -1773,15 +2014,15 @@ export default function KasirPage() {
               </div>
 
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <input 
-                  type="datetime-local" 
+                <input
+                  type="datetime-local"
                   className="input-field"
                   value={editTanggalInput}
                   onChange={e => setEditTanggalInput(e.target.value)}
                   style={{ flex: 1, padding: '0.45rem 0.65rem', fontSize: '0.8125rem', backgroundColor: 'var(--surface-card)' }}
                 />
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="btn-primary"
                   onClick={handleSaveTanggal}
                   disabled={savingTanggal || !editTanggalInput}
@@ -1828,6 +2069,24 @@ export default function KasirPage() {
                   ))}
                 </tbody>
                 <tfoot>
+                  {selectedDetailTx.diskon > 0 && (
+                    <>
+                      <tr style={{ backgroundColor: 'var(--surface-sunken)', fontWeight: 600 }}>
+                        <td colSpan="3" style={{ padding: '0.45rem 0.75rem', textAlign: 'right', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Subtotal:</td>
+                        <td className="tabular" style={{ padding: '0.45rem 0.75rem', textAlign: 'right', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                          Rp {(selectedDetailTx.subtotal || (selectedDetailTx.total + selectedDetailTx.diskon))?.toLocaleString('id-ID')}
+                        </td>
+                      </tr>
+                      <tr style={{ backgroundColor: 'var(--surface-sunken)', fontWeight: 700 }}>
+                        <td colSpan="3" style={{ padding: '0.45rem 0.75rem', textAlign: 'right', fontSize: '0.75rem', color: 'var(--terracotta)', textTransform: 'uppercase' }}>
+                          Diskon {selectedDetailTx.diskon_tipe === 'persen' ? `(${selectedDetailTx.diskon_nilai}%)` : ''}:
+                        </td>
+                        <td className="tabular" style={{ padding: '0.45rem 0.75rem', textAlign: 'right', color: 'var(--terracotta)', fontSize: '0.85rem' }}>
+                          - Rp {selectedDetailTx.diskon?.toLocaleString('id-ID')}
+                        </td>
+                      </tr>
+                    </>
+                  )}
                   <tr style={{ backgroundColor: 'var(--surface-sunken)', fontWeight: 700 }}>
                     <td colSpan="3" style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total:</td>
                     <td className="tabular" style={{ padding: '0.65rem 0.75rem', textAlign: 'right', color: 'var(--terracotta)', fontSize: '0.95rem' }}>
@@ -1840,8 +2099,8 @@ export default function KasirPage() {
 
             {/* Tombol Aksi di Bawah Pop-Up Detail */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setSelectedDetailTx(null)}
                 className="btn-secondary"
                 style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}
@@ -1851,15 +2110,15 @@ export default function KasirPage() {
 
               {selectedDetailTx.status === 'pending' ? (
                 <>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => setCancelConfirmTx(selectedDetailTx)}
                     className="btn-danger"
                     style={{ padding: '0.5rem 0.9rem', fontSize: '0.8125rem' }}
                   >
                     <IconTrash size={14} /> Batalkan Transaksi
                   </button>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => {
                       handleStartCompletePending(selectedDetailTx);
@@ -1872,7 +2131,7 @@ export default function KasirPage() {
                   </button>
                 </>
               ) : (
-                <button 
+                <button
                   type="button"
                   onClick={() => {
                     setCompletedTx(selectedDetailTx);
@@ -1896,7 +2155,7 @@ export default function KasirPage() {
       {editingTx && (
         <div className="modal-overlay" style={{ zIndex: 1200 }}>
           <div className="modal-content" style={{ maxWidth: '680px', width: '94%', maxHeight: '92vh', overflowY: 'auto' }}>
-            
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
@@ -1909,9 +2168,9 @@ export default function KasirPage() {
                   No. Transaksi: <span className="tabular" style={{ fontFamily: 'monospace', fontWeight: 600 }}>{editingTx.no_transaksi}</span> &bull; Sesuaikan jumlah dan harga sebelum checkout.
                 </p>
               </div>
-              <button 
+              <button
                 type="button"
-                onClick={() => setEditingTx(null)} 
+                onClick={() => setEditingTx(null)}
                 className="btn-ghost"
                 style={{ width: '32px', height: '32px', padding: 0 }}
                 aria-label="Tutup"
@@ -1950,7 +2209,7 @@ export default function KasirPage() {
                         </td>
                         <td style={{ padding: '0.55rem 0.65rem', textAlign: 'center' }}>
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', padding: '0.15rem' }}>
-                            <button 
+                            <button
                               type="button"
                               onClick={() => updateEditItemQty(idx, -1)}
                               style={{ width: '24px', height: '24px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}
@@ -1959,7 +2218,7 @@ export default function KasirPage() {
                               <IconMinus size={12} />
                             </button>
                             <span className="tabular" style={{ width: '24px', textAlign: 'center', fontWeight: 700, fontSize: '0.8125rem' }}>{it.qty}</span>
-                            <button 
+                            <button
                               type="button"
                               onClick={() => updateEditItemQty(idx, 1)}
                               style={{ width: '24px', height: '24px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}
@@ -1972,9 +2231,9 @@ export default function KasirPage() {
                         <td style={{ padding: '0.55rem 0.65rem', textAlign: 'right' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
                             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Rp</span>
-                            <input 
-                              type="number" 
-                              className="input-field tabular" 
+                            <input
+                              type="number"
+                              className="input-field tabular"
                               value={it.harga_satuan}
                               onChange={e => updateEditItemPrice(idx, e.target.value)}
                               style={{ width: '90px', padding: '0.3rem 0.45rem', fontSize: '0.8125rem', textAlign: 'right', fontWeight: 600 }}
@@ -1986,7 +2245,7 @@ export default function KasirPage() {
                           Rp {(it.qty * it.harga_satuan).toLocaleString('id-ID')}
                         </td>
                         <td style={{ padding: '0.55rem 0.4rem', textAlign: 'center' }}>
-                          <button 
+                          <button
                             type="button"
                             onClick={() => removeEditItem(idx)}
                             style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
@@ -2003,7 +2262,7 @@ export default function KasirPage() {
 
               {/* Tambah Produk Lain ke Pesanan Pending */}
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <select 
+                <select
                   className="input-field"
                   value={editProductToAdd}
                   onChange={e => setEditProductToAdd(e.target.value)}
@@ -2016,8 +2275,8 @@ export default function KasirPage() {
                     </option>
                   ))}
                 </select>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={handleAddProductToEdit}
                   disabled={!editProductToAdd}
                   className="btn-secondary"
@@ -2028,18 +2287,53 @@ export default function KasirPage() {
               </div>
             </div>
 
+            {/* Diskon Pengaturan saat Selesaikan Pending */}
+            <div style={{ backgroundColor: 'var(--surface-sunken)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <IconTag size={13} color="var(--terracotta)" /> Pilih Diskon / Promo
+                </span>
+                {editDiskonId && (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectEditDiskon('')}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.72rem', textDecoration: 'underline' }}
+                  >
+                    Hapus Diskon
+                  </button>
+                )}
+              </div>
+              <select
+                className="input-field"
+                value={editDiskonId}
+                onChange={e => handleSelectEditDiskon(e.target.value)}
+                style={{ width: '100%', padding: '0.45rem 0.65rem', fontSize: '0.8125rem' }}
+              >
+                <option value="">-- Tanpa Diskon (Normal) --</option>
+                {diskonList.map(d => (
+                  <option key={d.id} value={d.id}>
+                    {d.nama} ({d.tipe === 'persen' ? `${d.nilai}%` : `Rp ${Number(d.nilai).toLocaleString('id-ID')}`})
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Ringkasan Total Tagihan Baru */}
-            <div style={{ backgroundColor: 'var(--surface-sunken)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Tagihan Final</span>
+            <div style={{ backgroundColor: 'var(--surface-sunken)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: editDiskonNominal > 0 ? '0.25rem' : '0' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Subtotal ({editItems.reduce((s, it) => s + it.qty, 0)} pcs)</span>
+                <span className="tabular" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Rp {editSubtotal.toLocaleString('id-ID')}</span>
+              </div>
+              {editDiskonNominal > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', color: 'var(--terracotta)' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>Diskon ({editDiskonNama || (editDiskonTipe === 'persen' ? `${editDiskonNilai}%` : 'Promo')})</span>
+                  <span className="tabular" style={{ fontSize: '0.85rem', fontWeight: 700 }}>- Rp {editDiskonNominal.toLocaleString('id-ID')}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: '0.4rem', borderTop: '1px dashed var(--border-subtle)' }}>
+                <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase' }}>Total Tagihan Final</span>
                 <span className="tabular" style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--terracotta)' }}>
                   Rp {editTotal.toLocaleString('id-ID')}
-                </span>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Jumlah Item</span>
-                <span className="tabular" style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem' }}>
-                  {editItems.reduce((s, it) => s + it.qty, 0)} pcs
                 </span>
               </div>
             </div>
@@ -2054,16 +2348,16 @@ export default function KasirPage() {
                     { id: 'qris', label: 'QRIS', icon: IconQrCode },
                     { id: 'transfer', label: 'Transfer', icon: IconCreditCard }
                   ].map(({ id, label, icon: IconComponent }) => (
-                    <button 
+                    <button
                       key={id}
                       type="button"
                       onClick={() => setEditMetode(id)}
-                      style={{ 
-                        flex: 1, 
-                        padding: '0.45rem', 
-                        borderRadius: 'var(--radius-sm)', 
-                        fontSize: '0.75rem', 
-                        fontWeight: 600, 
+                      style={{
+                        flex: 1,
+                        padding: '0.45rem',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
                         border: '1px solid',
                         borderColor: editMetode === id ? 'var(--terracotta)' : 'var(--border-subtle)',
                         backgroundColor: editMetode === id ? 'var(--terracotta-subtle)' : 'var(--surface-card)',
@@ -2084,7 +2378,7 @@ export default function KasirPage() {
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.35rem', color: 'var(--text-secondary)' }}>Nominal Dibayar (Rp)</label>
-                <input 
+                <input
                   type="number"
                   className="input-field tabular"
                   value={editBayar}
@@ -2098,9 +2392,9 @@ export default function KasirPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.35rem', color: 'var(--text-secondary)' }}>Mitra / Penjual</label>
-                <select 
-                  className="input-field" 
-                  value={editSeller} 
+                <select
+                  className="input-field"
+                  value={editSeller}
                   onChange={e => setEditSeller(e.target.value)}
                   style={{ padding: '0.45rem 0.65rem', fontSize: '0.8125rem' }}
                 >
@@ -2110,8 +2404,8 @@ export default function KasirPage() {
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.35rem', color: 'var(--text-secondary)' }}>Catatan Tambahan</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   className="input-field"
                   placeholder="Catatan pelunasan..."
                   value={editKeterangan}
@@ -2123,8 +2417,8 @@ export default function KasirPage() {
 
             {/* Tombol Eksekusi Penyelesaian */}
             <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-subtle)' }}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setEditingTx(null)}
                 disabled={completingPending}
                 className="btn-secondary"
@@ -2132,8 +2426,8 @@ export default function KasirPage() {
               >
                 Batal
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={handleFinishCompletePending}
                 disabled={completingPending || editItems.length === 0}
                 className="btn-primary"
@@ -2312,15 +2606,15 @@ export default function KasirPage() {
       {showPayment && (
         <div className="modal-overlay" style={{ zIndex: 1100 }}>
           <div className="modal-content" style={{ maxWidth: '500px', width: '92%' }}>
-            
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.85rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <IconCart size={18} color="var(--terracotta)" />
                 <h2 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>Konfirmasi Pembayaran</h2>
               </div>
-              <button 
+              <button
                 type="button"
-                onClick={() => setShowPayment(false)} 
+                onClick={() => setShowPayment(false)}
                 className="btn-ghost"
                 style={{ width: '32px', height: '32px', padding: 0 }}
                 aria-label="Tutup"
@@ -2329,15 +2623,85 @@ export default function KasirPage() {
               </button>
             </div>
 
-            <div style={{ backgroundColor: 'var(--surface-sunken)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Tagihan</span>
+            <div style={{ backgroundColor: 'var(--surface-sunken)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: diskonNominal > 0 ? '0.35rem' : '0' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Subtotal Produk ({totalQty} item)</span>
+                <span className="tabular" style={{ fontSize: '0.875rem', fontWeight: 600 }}>Rp {subtotal.toLocaleString('id-ID')}</span>
+              </div>
+              {diskonNominal > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem', color: 'var(--terracotta)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 700 }}>
+                    <IconTag size={13} />
+                    <span>Diskon ({diskonNama || (diskonTipe === 'persen' ? `${diskonNilai}%` : 'Promo')})</span>
+                    <button
+                      type="button"
+                      onClick={removeDiscount}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', textDecoration: 'underline', fontSize: '0.7rem', cursor: 'pointer', padding: 0, marginLeft: '0.2rem' }}
+                    >
+                      Batal
+                    </button>
+                  </div>
+                  <span className="tabular" style={{ fontSize: '0.875rem', fontWeight: 700 }}>- Rp {diskonNominal.toLocaleString('id-ID')}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: '0.45rem', borderTop: '1px dashed var(--border-subtle)' }}>
+                <span style={{ fontSize: '0.8125rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase' }}>Total Tagihan</span>
                 <span className="tabular" style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--terracotta)' }}>Rp {total.toLocaleString('id-ID')}</span>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Item</span>
-                <span className="tabular" style={{ fontSize: '1rem', fontWeight: 700 }}>{totalQty} Item</span>
+            </div>
+
+            {/* Promo / Diskon Dropdown Selection */}
+            <div style={{ marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <IconTag size={14} style={{ color: 'var(--terracotta)' }} />
+                  <span>Pilih Diskon / Promo</span>
+                </label>
+                {mounted && currentUser?.role === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={() => { setShowPayment(false); router.push('/admin/diskon'); }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--terracotta)',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      padding: 0
+                    }}
+                  >
+                    + Kelola Diskon (Admin)
+                  </button>
+                )}
               </div>
+
+              <select
+                className="input-field"
+                value={selectedDiskonId}
+                onChange={(e) => handleSelectDiskon(e.target.value)}
+                style={{
+                  padding: '0.55rem 0.75rem',
+                  fontSize: '0.8125rem',
+                  width: '100%',
+                  fontWeight: selectedDiskonId ? 700 : 400,
+                  borderColor: selectedDiskonId ? 'var(--terracotta)' : 'var(--border-subtle)',
+                  backgroundColor: selectedDiskonId ? 'var(--terracotta-subtle)' : 'var(--surface-card)'
+                }}
+              >
+                <option value="">-- Tanpa Diskon (Normal) --</option>
+                {diskonList.map(d => (
+                  <option key={d.id} value={d.id}>
+                    {d.nama} ({d.tipe === 'persen' ? `${d.nilai}%` : `Rp ${Number(d.nilai).toLocaleString('id-ID')}`})
+                  </option>
+                ))}
+              </select>
+
+              {diskonList.length === 0 && (
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', marginTop: '0.3rem', fontStyle: 'italic' }}>
+                  Belum ada promo aktif yang dibuat oleh Admin.
+                </div>
+              )}
             </div>
 
             {/* Seller / Mitra Input */}
@@ -2399,9 +2763,9 @@ export default function KasirPage() {
                 </div>
               )}
 
-              <select 
-                className="input-field" 
-                value={seller} 
+              <select
+                className="input-field"
+                value={seller}
                 onChange={e => setSeller(e.target.value)}
                 style={{ padding: '0.55rem 0.75rem', fontSize: '0.8125rem' }}
               >
@@ -2411,9 +2775,9 @@ export default function KasirPage() {
               </select>
 
               {seller === 'Lainnya (Kustom)' && (
-                <input 
-                  type="text" 
-                  className="input-field" 
+                <input
+                  type="text"
+                  className="input-field"
                   placeholder="Ketik nama mitra / pemesan khusus..."
                   value={customSeller}
                   onChange={e => setCustomSeller(e.target.value)}
@@ -2433,19 +2797,19 @@ export default function KasirPage() {
                   { id: 'qris', label: 'QRIS', icon: IconQrCode },
                   { id: 'transfer', label: 'Transfer', icon: IconCreditCard }
                 ].map(({ id, label, icon: IconComponent }) => (
-                  <button 
+                  <button
                     key={id}
                     type="button"
                     onClick={() => setMetodeBayar(id)}
-                    style={{ 
-                      padding: '0.65rem 0.5rem', 
+                    style={{
+                      padding: '0.65rem 0.5rem',
                       border: '1px solid',
                       borderColor: metodeBayar === id ? 'var(--terracotta)' : 'var(--border-subtle)',
-                      borderRadius: 'var(--radius-md)', 
-                      fontWeight: 600, 
-                      fontSize: '0.8125rem', 
+                      borderRadius: 'var(--radius-md)',
+                      fontWeight: 600,
+                      fontSize: '0.8125rem',
                       cursor: 'pointer',
-                      backgroundColor: metodeBayar === id ? 'var(--terracotta-subtle)' : 'var(--surface-card)', 
+                      backgroundColor: metodeBayar === id ? 'var(--terracotta-subtle)' : 'var(--surface-card)',
                       color: metodeBayar === id ? 'var(--terracotta)' : 'var(--text-secondary)',
                       display: 'flex',
                       flexDirection: 'column',
@@ -2466,13 +2830,13 @@ export default function KasirPage() {
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-secondary)' }}>
                 Catatan Pesanan (Opsional)
               </label>
-              <textarea 
-                className="input-field" 
+              <textarea
+                className="input-field"
                 rows={2}
                 placeholder="Contoh: Es dipisah, STMJ tanpa telur, dll..."
                 value={keterangan}
                 onChange={e => setKeterangan(e.target.value)}
-                style={{ 
+                style={{
                   resize: 'vertical',
                   minHeight: '60px',
                   fontSize: '0.8125rem',
@@ -2483,20 +2847,20 @@ export default function KasirPage() {
 
             {/* Action buttons */}
             <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-subtle)' }}>
-              <button 
+              <button
                 type="button"
-                className="btn-secondary" 
-                style={{ flex: 1, padding: '0.65rem' }} 
-                onClick={() => setShowPayment(false)} 
+                className="btn-secondary"
+                style={{ flex: 1, padding: '0.65rem' }}
+                onClick={() => setShowPayment(false)}
                 disabled={processing}
               >
                 Batal
               </button>
-              <button 
-                type="button" 
-                className="btn-primary" 
-                style={{ flex: 1.5, padding: '0.65rem' }} 
-                onClick={handlePayment} 
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ flex: 1.5, padding: '0.65rem' }}
+                onClick={handlePayment}
                 disabled={processing}
               >
                 <IconCheck size={15} />
@@ -2509,87 +2873,21 @@ export default function KasirPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* 6. MODAL STRUK BUKTI PEMBAYARAN                                            */}
+      {/* 6. MODAL NOTA DIGITAL BUKTI TRANSAKSI                                      */}
       {/* ========================================================================= */}
-      {showReceipt && completedTx && (
-        <div className="modal-overlay" style={{ zIndex: 1300 }}>
-          <div className="modal-content" style={{ maxWidth: '420px', width: '92%', textAlign: 'center' }}>
-            <div style={{ padding: '0.5rem 0 1.25rem 0', borderBottom: '1px dashed var(--border-subtle)', marginBottom: '1.25rem' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.2rem 0.55rem', backgroundColor: 'var(--surface-sunken)', borderRadius: 'var(--radius-sm)', fontSize: '0.6875rem', fontWeight: 600, color: 'var(--success)', border: '1px solid var(--border-subtle)', marginBottom: '0.75rem' }}>
-                <IconCheck size={11} /> TRANSAKSI BERHASIL
-              </div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 0.25rem 0', letterSpacing: '-0.02em', color: 'var(--terracotta)' }}>ANDINI PURE MILK</h2>
-              <p className="tabular" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0, fontFamily: 'monospace' }}>{completedTx.no_transaksi}</p>
-              <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.25rem 0 0 0' }}>
-                {new Date(completedTx.tanggal).toLocaleString('id-ID')} &bull; Mitra: {completedTx.seller}
-              </p>
-              <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600, margin: '0.15rem 0 0 0' }}>
-                Kasir: {completedTx.kasir || 'Kasir Gerai'}
-              </p>
-            </div>
-
-            {/* Receipt Items List */}
-            <div style={{ textAlign: 'left', marginBottom: '1.25rem', maxHeight: '220px', overflowY: 'auto' }}>
-              {(completedTx.items || []).map((it, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', marginBottom: '0.5rem', alignItems: 'baseline' }}>
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{it.nama || it.nama_produk}</div>
-                    <div className="tabular" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                      {it.qty} x Rp {it.harga_satuan.toLocaleString('id-ID')}
-                    </div>
-                  </div>
-                  <div className="tabular" style={{ fontWeight: 700 }}>
-                    Rp {((it.subtotal !== undefined ? it.subtotal : (it.qty * it.harga_satuan)) || 0).toLocaleString('id-ID')}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ borderTop: '1px dashed var(--border-subtle)', paddingTop: '1rem', marginBottom: '1.25rem', textAlign: 'left' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.1rem', marginBottom: '0.35rem' }}>
-                <span>TOTAL</span>
-                <span className="tabular" style={{ color: 'var(--terracotta)' }}>Rp {completedTx.total.toLocaleString('id-ID')}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                <span>METODE PEMBAYARAN</span>
-                <span style={{ textTransform: 'uppercase', fontWeight: 600, color: 'var(--text-primary)' }}>{completedTx.metode_bayar}</span>
-              </div>
-              {completedTx.keterangan && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-                  <span>CATATAN:</span>
-                  <span style={{ fontWeight: 500, fontStyle: 'italic', maxWidth: '65%', textAlign: 'right', color: 'var(--text-secondary)' }}>
-                    {completedTx.keterangan}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button 
-                type="button"
-                className="btn-secondary" 
-                style={{ flex: 1, padding: '0.65rem', fontSize: '0.8125rem' }}
-                onClick={() => {
-                  if (typeof window !== 'undefined') window.print();
-                }}
-              >
-                <IconPrinter size={14} /> Cetak
-              </button>
-              <button 
-                type="button"
-                className="btn-primary" 
-                style={{ flex: 1.5, padding: '0.65rem', fontSize: '0.8125rem' }}
-                onClick={() => {
-                  setShowReceipt(false);
-                  setCompletedTx(null);
-                }}
-              >
-                Transaksi Baru &rarr;
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ReceiptModal
+        isOpen={showReceipt && !!completedTx}
+        onClose={() => {
+          setShowReceipt(false);
+          setCompletedTx(null);
+        }}
+        tx={completedTx}
+        onNewTransaction={() => {
+          setShowReceipt(false);
+          setCompletedTx(null);
+          setOrder([]);
+        }}
+      />
 
       {/* ========================================================================= */}
       {/* 7. MODAL ALERT KONFIRMASI PEMBATALAN TRANSAKSI PENDING                   */}
@@ -2597,16 +2895,16 @@ export default function KasirPage() {
       {cancelConfirmTx && (
         <div className="modal-overlay" style={{ zIndex: 1350 }}>
           <div className="modal-content" style={{ maxWidth: '420px', width: '92%', textAlign: 'center', padding: '1.5rem' }}>
-            
-            <div style={{ 
-              width: '48px', 
-              height: '48px', 
-              borderRadius: '50%', 
-              backgroundColor: 'var(--danger-subtle)', 
-              color: 'var(--danger)', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
+
+            <div style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '50%',
+              backgroundColor: 'var(--danger-subtle)',
+              color: 'var(--danger)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               margin: '0 auto 1rem auto'
             }}>
               <IconAlertCircle size={24} />
@@ -2620,11 +2918,11 @@ export default function KasirPage() {
               Pesanan ini akan dibatalkan dan dihapus dari antrean pending. Tindakan ini tidak dapat diurungkan.
             </p>
 
-            <div style={{ 
-              backgroundColor: 'var(--surface-sunken)', 
-              borderRadius: 'var(--radius-md)', 
-              padding: '0.85rem 1rem', 
-              border: '1px solid var(--border-subtle)', 
+            <div style={{
+              backgroundColor: 'var(--surface-sunken)',
+              borderRadius: 'var(--radius-md)',
+              padding: '0.85rem 1rem',
+              border: '1px solid var(--border-subtle)',
               textAlign: 'left',
               marginBottom: '1rem',
               fontSize: '0.8125rem'
@@ -2652,13 +2950,13 @@ export default function KasirPage() {
               )}
             </div>
 
-            <div style={{ 
-              backgroundColor: 'var(--warning-subtle)', 
-              border: '1px solid rgba(180, 83, 9, 0.2)', 
-              padding: '0.55rem 0.75rem', 
-              borderRadius: 'var(--radius-sm)', 
-              fontSize: '0.72rem', 
-              color: 'var(--warning)', 
+            <div style={{
+              backgroundColor: 'var(--warning-subtle)',
+              border: '1px solid rgba(180, 83, 9, 0.2)',
+              padding: '0.55rem 0.75rem',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.72rem',
+              color: 'var(--warning)',
               marginBottom: '1.25rem',
               textAlign: 'left',
               display: 'flex',
@@ -2670,7 +2968,7 @@ export default function KasirPage() {
             </div>
 
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button 
+              <button
                 type="button"
                 onClick={() => setCancelConfirmTx(null)}
                 disabled={cancellingTx}
@@ -2679,7 +2977,7 @@ export default function KasirPage() {
               >
                 Kembali
               </button>
-              <button 
+              <button
                 type="button"
                 onClick={handleConfirmDeletePending}
                 disabled={cancellingTx}
@@ -2694,6 +2992,8 @@ export default function KasirPage() {
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
 
     </div>
   );

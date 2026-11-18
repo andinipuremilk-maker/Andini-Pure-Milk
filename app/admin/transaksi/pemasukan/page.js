@@ -73,6 +73,8 @@ export default function PemasukanPage() {
   const [editPendingItems, setEditPendingItems] = useState([]);
   const [editPendingSeller, setEditPendingSeller] = useState('Umum / Retail');
   const [editPendingMetode, setEditPendingMetode] = useState('tunai');
+  const [editPendingDiskonTipe, setEditPendingDiskonTipe] = useState('nominal');
+  const [editPendingDiskonNilai, setEditPendingDiskonNilai] = useState(0);
   const [editPendingBayar, setEditPendingBayar] = useState(0);
   const [editPendingKeterangan, setEditPendingKeterangan] = useState('');
   const [savingPendingComplete, setSavingPendingComplete] = useState(false);
@@ -329,7 +331,19 @@ export default function PemasukanPage() {
     setEditPendingSeller(item.seller || 'Umum / Retail');
     setEditPendingMetode(item.metode_bayar || 'tunai');
     setEditPendingKeterangan(item.keterangan || '');
-    const currentTotal = initialItems.reduce((sum, it) => sum + (it.qty * it.harga_satuan), 0);
+    setEditPendingDiskonTipe(item.diskon_tipe || 'nominal');
+    setEditPendingDiskonNilai(Number(item.diskon_nilai) || 0);
+
+    const initialSubtotal = initialItems.reduce((sum, it) => sum + (it.qty * it.harga_satuan), 0);
+    let initialDiskon = 0;
+    if (item.diskon_nilai > 0) {
+      if (item.diskon_tipe === 'persen') {
+        initialDiskon = Math.round((initialSubtotal * Math.min(100, item.diskon_nilai)) / 100);
+      } else {
+        initialDiskon = Math.min(initialSubtotal, item.diskon_nilai);
+      }
+    }
+    const currentTotal = Math.max(0, initialSubtotal - initialDiskon);
     setEditPendingBayar(currentTotal);
   };
 
@@ -345,7 +359,17 @@ export default function PemasukanPage() {
   const handleFinishCompletePending = async () => {
     if (!editingPendingTx || editPendingItems.length === 0) return;
     setSavingPendingComplete(true);
-    const computedTotal = editPendingItems.reduce((sum, it) => sum + (it.qty * it.harga_satuan), 0);
+
+    const computedSubtotal = editPendingItems.reduce((sum, it) => sum + (it.qty * it.harga_satuan), 0);
+    let computedDiskon = 0;
+    if (editPendingDiskonNilai > 0) {
+      if (editPendingDiskonTipe === 'persen') {
+        computedDiskon = Math.round((computedSubtotal * Math.min(100, editPendingDiskonNilai)) / 100);
+      } else {
+        computedDiskon = Math.min(computedSubtotal, editPendingDiskonNilai);
+      }
+    }
+    const computedTotal = Math.max(0, computedSubtotal - computedDiskon);
     const finalBayar = Number(editPendingBayar) || computedTotal;
 
     try {
@@ -356,6 +380,10 @@ export default function PemasukanPage() {
           id: editingPendingTx.id,
           detailItems: editPendingItems,
           transaksiData: {
+            subtotal: computedSubtotal,
+            diskon: computedDiskon,
+            diskon_tipe: editPendingDiskonTipe,
+            diskon_nilai: editPendingDiskonNilai,
             total: computedTotal,
             bayar: finalBayar,
             metode_bayar: editPendingMetode,
@@ -676,6 +704,11 @@ export default function PemasukanPage() {
                       <div className="tabular" style={{ fontWeight: 700, fontSize: '0.875rem', color: isPending ? 'var(--warning)' : 'inherit' }}>
                         Rp {item.total?.toLocaleString('id-ID')}
                       </div>
+                      {item.diskon > 0 && (
+                        <div className="tabular" style={{ fontSize: '0.6875rem', color: 'var(--color-chocolate)', fontWeight: 600 }}>
+                          Disc: -Rp {item.diskon?.toLocaleString('id-ID')}
+                        </div>
+                      )}
                       <span style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', display: 'inline-block', marginTop: '0.15rem' }}>
                         {item.metode_bayar || 'Tunai'}
                       </span>
@@ -865,9 +898,23 @@ export default function PemasukanPage() {
 
             {/* Breakdown Finansial */}
             <div className="modal-stat-breakdown" style={{ marginBottom: '1.25rem', padding: '1rem', backgroundColor: 'var(--color-bg-dark)', borderRadius: '6px' }}>
+              {selectedTx.diskon > 0 && (
+                <>
+                  <div>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-secondary)', display: 'block', letterSpacing: '0.5px' }}>SUBTOTAL</span>
+                    <strong style={{ fontSize: '0.9375rem' }}>Rp {(selectedTx.subtotal || (selectedTx.total + selectedTx.diskon))?.toLocaleString('id-ID')}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-chocolate)', display: 'block', letterSpacing: '0.5px' }}>
+                      DISKON {selectedTx.diskon_tipe === 'persen' ? `(${selectedTx.diskon_nilai}%)` : ''}
+                    </span>
+                    <strong style={{ fontSize: '0.9375rem', color: 'var(--color-chocolate)' }}>- Rp {selectedTx.diskon?.toLocaleString('id-ID')}</strong>
+                  </div>
+                </>
+              )}
               <div>
                 <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-secondary)', display: 'block', letterSpacing: '0.5px' }}>TOTAL SETOR</span>
-                <strong style={{ fontSize: '0.9375rem' }}>Rp {selectedTx.total?.toLocaleString('id-ID')}</strong>
+                <strong style={{ fontSize: '0.9375rem', color: 'var(--color-chocolate)' }}>Rp {selectedTx.total?.toLocaleString('id-ID')}</strong>
               </div>
               <div>
                 <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-secondary)', display: 'block', letterSpacing: '0.5px' }}>MODAL (HPP)</span>
@@ -905,6 +952,32 @@ export default function PemasukanPage() {
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                {selectedTx.diskon > 0 && (
+                  <>
+                    <tr style={{ borderTop: '1px solid var(--color-border)' }}>
+                      <td colSpan="3" style={{ padding: '0.4rem 0', fontSize: '0.75rem', fontWeight: 700, textAlign: 'right' }}>SUBTOTAL:</td>
+                      <td style={{ padding: '0.4rem 0', fontSize: '0.8125rem', textAlign: 'right', fontWeight: 700 }}>
+                        Rp {(selectedTx.subtotal || (selectedTx.total + selectedTx.diskon))?.toLocaleString('id-ID')}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan="3" style={{ padding: '0.3rem 0', fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-chocolate)', textAlign: 'right' }}>
+                        DISKON {selectedTx.diskon_tipe === 'persen' ? `(${selectedTx.diskon_nilai}%)` : ''}:
+                      </td>
+                      <td style={{ padding: '0.3rem 0', fontSize: '0.8125rem', textAlign: 'right', fontWeight: 700, color: 'var(--color-chocolate)' }}>
+                        - Rp {selectedTx.diskon?.toLocaleString('id-ID')}
+                      </td>
+                    </tr>
+                  </>
+                )}
+                <tr style={{ borderTop: '1px dashed var(--color-border)' }}>
+                  <td colSpan="3" style={{ padding: '0.5rem 0', fontSize: '0.8125rem', fontWeight: 800, textAlign: 'right' }}>TOTAL:</td>
+                  <td style={{ padding: '0.5rem 0', fontSize: '0.9375rem', textAlign: 'right', fontWeight: 800, color: 'var(--color-chocolate)' }}>
+                    Rp {selectedTx.total?.toLocaleString('id-ID')}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -1022,13 +1095,122 @@ export default function PemasukanPage() {
               </table>
             </div>
 
-            {/* Total Tagihan */}
-            <div style={{ backgroundColor: 'var(--color-chocolate-light)', padding: '0.75rem 1rem', borderRadius: '6px', border: '1px solid var(--color-border)', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.8125rem', fontWeight: 800 }}>TOTAL TAGIHAN:</span>
-              <span style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--color-chocolate)' }}>
-                Rp {editPendingItems.reduce((s, it) => s + (it.qty * it.harga_satuan), 0).toLocaleString('id-ID')}
-              </span>
-            </div>
+            {/* Pengaturan Diskon & Total Tagihan */}
+            {(() => {
+              const pendingSub = editPendingItems.reduce((s, it) => s + (it.qty * it.harga_satuan), 0);
+              let pendingDisc = 0;
+              if (editPendingDiskonNilai > 0) {
+                if (editPendingDiskonTipe === 'persen') {
+                  pendingDisc = Math.round((pendingSub * Math.min(100, editPendingDiskonNilai)) / 100);
+                } else {
+                  pendingDisc = Math.min(pendingSub, editPendingDiskonNilai);
+                }
+              }
+              const pendingTot = Math.max(0, pendingSub - pendingDisc);
+
+              return (
+                <>
+                  <div style={{ backgroundColor: 'var(--color-bg-dark)', padding: '0.65rem 0.85rem', borderRadius: '6px', border: '1px solid var(--color-border)', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800 }}>DISKON PESANAN:</span>
+                      <div style={{ display: 'inline-flex', gap: '0.2rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditPendingDiskonTipe('nominal');
+                            const d = Math.min(pendingSub, editPendingDiskonNilai);
+                            setEditPendingBayar(Math.max(0, pendingSub - d));
+                          }}
+                          style={{
+                            padding: '0.15rem 0.45rem',
+                            fontSize: '0.7rem',
+                            fontWeight: 800,
+                            borderRadius: '3px',
+                            border: '1px solid',
+                            borderColor: editPendingDiskonTipe === 'nominal' ? 'var(--color-chocolate)' : 'var(--color-border)',
+                            backgroundColor: editPendingDiskonTipe === 'nominal' ? 'var(--color-chocolate)' : 'transparent',
+                            color: editPendingDiskonTipe === 'nominal' ? '#fff' : 'inherit',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Rp
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditPendingDiskonTipe('persen');
+                            const d = Math.round((pendingSub * Math.min(100, editPendingDiskonNilai)) / 100);
+                            setEditPendingBayar(Math.max(0, pendingSub - d));
+                          }}
+                          style={{
+                            padding: '0.15rem 0.45rem',
+                            fontSize: '0.7rem',
+                            fontWeight: 800,
+                            borderRadius: '3px',
+                            border: '1px solid',
+                            borderColor: editPendingDiskonTipe === 'persen' ? 'var(--color-chocolate)' : 'var(--color-border)',
+                            backgroundColor: editPendingDiskonTipe === 'persen' ? 'var(--color-chocolate)' : 'transparent',
+                            color: editPendingDiskonTipe === 'persen' ? '#fff' : 'inherit',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          %
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <input
+                        type="number"
+                        className="input-field"
+                        min="0"
+                        max={editPendingDiskonTipe === 'persen' ? 100 : pendingSub}
+                        placeholder={editPendingDiskonTipe === 'persen' ? '10 (%)' : '5000 (Rp)'}
+                        value={editPendingDiskonNilai || ''}
+                        onChange={e => {
+                          const v = Math.max(0, Number(e.target.value) || 0);
+                          setEditPendingDiskonNilai(v);
+                          const d = editPendingDiskonTipe === 'persen' ? Math.round((pendingSub * Math.min(100, v)) / 100) : Math.min(pendingSub, v);
+                          setEditPendingBayar(Math.max(0, pendingSub - d));
+                        }}
+                        style={{ width: '100px', padding: '0.25rem 0.45rem', fontSize: '0.8125rem', textAlign: 'right', fontWeight: 700 }}
+                      />
+                      {editPendingDiskonNilai > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditPendingDiskonNilai(0);
+                            setEditPendingBayar(pendingSub);
+                          }}
+                          style={{ background: 'none', border: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: '0.7rem' }}
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: 'var(--color-chocolate-light)', padding: '0.75rem 1rem', borderRadius: '6px', border: '1px solid var(--color-border)', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: pendingDisc > 0 ? '0.25rem' : '0', fontSize: '0.75rem', fontWeight: 700 }}>
+                      <span>SUBTOTAL:</span>
+                      <span>Rp {pendingSub.toLocaleString('id-ID')}</span>
+                    </div>
+                    {pendingDisc > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-chocolate)' }}>
+                        <span>DISKON ({editPendingDiskonTipe === 'persen' ? `${editPendingDiskonNilai}%` : 'Rp'}):</span>
+                        <span>- Rp {pendingDisc.toLocaleString('id-ID')}</span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.35rem', borderTop: '1px dashed var(--color-border)' }}>
+                      <span style={{ fontSize: '0.8125rem', fontWeight: 800 }}>TOTAL TAGIHAN:</span>
+                      <span style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--color-chocolate)' }}>
+                        Rp {pendingTot.toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Pembayaran & Catatan */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem' }}>

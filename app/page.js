@@ -1,22 +1,23 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { IconMilk, IconCart, IconShield, IconArrowRight, IconLogOut } from '../components/ui/icons';
 
 export default function LandingPage() {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const userStr = localStorage.getItem('user');
-        if (userStr) {
-          const u = JSON.parse(userStr);
-          if (u && u.role) return u;
-        }
-      } catch (e) {}
-    }
-    return null;
-  });
+  const [currentUser, setCurrentUser] = useState(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const u = JSON.parse(userStr);
+        if (u && u.role) setCurrentUser(u);
+      }
+    } catch (e) {}
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -98,7 +99,7 @@ export default function LandingPage() {
         </div>
 
         {/* Action Panel */}
-        {currentUser ? (
+        {mounted && currentUser ? (
           <div style={{
             width: '100%',
             backgroundColor: 'var(--surface-subtle)',

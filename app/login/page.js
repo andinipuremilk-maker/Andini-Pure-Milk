@@ -40,26 +40,24 @@ function LoginForm() {
   // Booth Penjualan State (Selalu Aktif & Wajib, Default Kosong "")
   const [selectedBooth, setSelectedBooth] = useState('');
   const [customBooth, setCustomBooth] = useState('');
-  const [boothList, setBoothList] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedBooths = localStorage.getItem('andini_booths');
-        if (savedBooths) {
-          const parsed = JSON.parse(savedBooths);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
-          }
-        }
-      } catch (e) {}
-    }
-    return DEFAULT_BOOTHS;
-  });
+  const [boothList, setBoothList] = useState(DEFAULT_BOOTHS);
   const [showQuickAddBooth, setShowQuickAddBooth] = useState(false);
   const [newBoothInput, setNewBoothInput] = useState('');
   const [quickBoothError, setQuickBoothError] = useState('');
 
-  // Sinkronisasi data booth dinamis dari database
+  // Sinkronisasi data booth dinamis dari database & local storage
   useEffect(() => {
+    try {
+      const savedBooths = localStorage.getItem('andini_booths');
+      if (savedBooths) {
+        const parsed = JSON.parse(savedBooths);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setBoothList(parsed);
+        }
+      }
+    } catch (e) {}
+
+    fetch('/api/booth?active_only=true')
     fetch('/api/booth?active_only=true')
       .then(res => res.json())
       .then(data => {

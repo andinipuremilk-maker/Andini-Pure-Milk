@@ -477,3 +477,42 @@ select.input-field {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ========================================================================= */
+/* Print Thermal Receipt Styles                                             */
+/* ========================================================================= */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .printable-receipt,
+  .printable-receipt * {
+    visibility: visible !important;
+  }
+  .printable-receipt {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 80mm !important;
+    margin: 0 auto !important;
+    padding: 6px !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border: none !important;
+    font-size: 11px !important;
+    font-family: monospace, -apple-system, BlinkMacSystemFont, sans-serif !important;
+  }
+  .no-print,
+  .modal-overlay {
+    background: transparent !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  @page {
+    margin: 3mm;
+    size: auto;
+  }
+}

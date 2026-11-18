@@ -17,7 +17,8 @@ import {
   IconChevronRight,
   IconX,
   IconTrendingUp,
-  IconTrendingDown
+  IconTrendingDown,
+  IconTag
 } from '../../components/ui/icons';
 
 export default function AdminLayout({ children }) {
@@ -265,6 +266,27 @@ export default function AdminLayout({ children }) {
         >
           <IconPackage size={16} />
           <span>Produk & Stok</span>
+        </Link>
+
+        {/* Diskon & Promo */}
+        <Link
+          href="/admin/diskon"
+          onClick={() => setMobileMenuOpen(false)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.65rem',
+            padding: '0.55rem 0.75rem',
+            borderRadius: 'var(--radius-md)',
+            fontSize: '0.8125rem',
+            fontWeight: pathname === '/admin/diskon' ? 600 : 500,
+            backgroundColor: pathname === '/admin/diskon' ? 'var(--accent-subtle)' : 'transparent',
+            color: pathname === '/admin/diskon' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+            transition: 'all 0.12s ease'
+          }}
+        >
+          <IconTag size={16} />
+          <span>Diskon & Promo</span>
         </Link>
 
         {/* Kelola Booth */}

@@ -129,8 +129,16 @@ export async function GET(req) {
             id,
             no_transaksi,
             tanggal,
+            subtotal,
+            diskon,
+            diskon_id,
+            diskon_nama,
+            diskon_tipe,
+            diskon_nilai,
             total,
             metode_bayar,
+            kasir,
+            user_id,
             items:detail_transaksi(
               id,
               produk_id,
@@ -145,7 +153,7 @@ export async function GET(req) {
 
         let queryExp = supabaseAdmin
           .from('pengeluaran')
-          .select('id, no_transaksi, tanggal, kategori, nominal')
+          .select('id, no_transaksi, tanggal, kategori, nominal, keterangan')
           .order('tanggal', { ascending: false });
 
         if (startStr && endStr) {
@@ -153,19 +161,86 @@ export async function GET(req) {
           queryExp = queryExp.gte('tanggal', startStr).lte('tanggal', endStr);
         }
 
-        const [{ data: transactions }, { data: expenses }, { data: categories }] = await Promise.all([
+        const [{ data: transactions }, { data: expenses }, { data: categories }, { data: products }] = await Promise.all([
           queryTrx,
           queryExp,
-          supabaseAdmin.from('kategori_produk').select('*')
+          supabaseAdmin.from('kategori_produk').select('*'),
+          supabaseAdmin.from('produk').select('id, nama, harga_jual, harga_modal, kategori_id')
         ]);
 
         const trxs = transactions || [];
         const exps = expenses || [];
         const kats = categories || [];
+        const prods = products || [];
 
-        const totalRevenue = trxs.reduce((sum, t) => sum + Number(t.total || 0), 0);
+        const prodMap = {};
+        prods.forEach(p => {
+          prodMap[p.id] = p;
+        });
+
+        // 1. Hitung Gross Sales, Diskon, HPP, & Profitabilitas Produk
+        let totalGrossSales = 0;
+        let totalDiscount = 0;
+        let totalHpp = 0;
+        const productProfitMap = {};
+
+        trxs.forEach(t => {
+          const tDiskon = Number(t.diskon || 0);
+          const tSubtotal = (t.subtotal !== undefined && t.subtotal !== null) 
+            ? Number(t.subtotal) 
+            : (Number(t.total || 0) + tDiskon);
+
+          totalGrossSales += tSubtotal;
+          totalDiscount += tDiskon;
+
+          (t.items || []).forEach(it => {
+            const p = prodMap[it.produk_id];
+            const qty = Number(it.qty || 1);
+            const hargaSatuan = Number(it.harga_satuan || (p ? p.harga_jual : 0));
+            const subtotal = Number(it.subtotal || (qty * hargaSatuan));
+            const modalSatuan = (p && p.harga_modal !== undefined && p.harga_modal !== null && Number(p.harga_modal) > 0)
+              ? Number(p.harga_modal)
+              : Math.round(hargaSatuan * 0.6);
+            const itemHpp = qty * modalSatuan;
+            totalHpp += itemHpp;
+
+            const key = it.produk_id || it.nama_produk || 'unknown';
+            if (!productProfitMap[key]) {
+              const katName = (p && p.kategori_id) ? (kats.find(k => k.id === p.kategori_id)?.nama || 'Olahan Susu') : 'Olahan Susu';
+              productProfitMap[key] = {
+                id: key,
+                nama: it.nama_produk || (p ? p.nama : 'Produk'),
+                kategori: katName,
+                qty: 0,
+                grossSales: 0,
+                hpp: 0,
+                grossProfit: 0,
+                marginPct: 0
+              };
+            }
+            productProfitMap[key].qty += qty;
+            productProfitMap[key].grossSales += subtotal;
+            productProfitMap[key].hpp += itemHpp;
+          });
+        });
+
+        const productProfitability = Object.values(productProfitMap).map(item => {
+          const grossProfit = item.grossSales - item.hpp;
+          const marginPct = item.grossSales > 0 ? Math.round((grossProfit / item.grossSales) * 100) : 0;
+          return {
+            ...item,
+            grossProfit,
+            marginPct
+          };
+        }).sort((a, b) => b.grossProfit - a.grossProfit);
+
+        const totalRevenue = totalGrossSales - totalDiscount;
+        const totalGrossProfit = totalRevenue - totalHpp;
+        const grossMarginPct = totalRevenue > 0 ? Math.round((totalGrossProfit / totalRevenue) * 100) : 0;
+
         const totalExpense = exps.reduce((sum, e) => sum + Number(e.nominal || 0), 0);
-        const totalNetProfit = totalRevenue - totalExpense;
+        const totalNetProfit = totalGrossProfit - totalExpense;
+        const netProfitMargin = totalRevenue > 0 ? Math.round((totalNetProfit / totalRevenue) * 100) : 0;
         const totalCount = trxs.length;
         const averageTicket = totalCount > 0 ? Math.round(totalRevenue / totalCount) : 0;
 
@@ -196,17 +271,25 @@ export async function GET(req) {
 
         const expenseCategoryBreakdown = Object.entries(expCatMap).map(([kategori, nominal]) => ({
           kategori,
-          nominal
-        }));
+          nominal,
+          percentage: totalExpense > 0 ? Math.round((nominal / totalExpense) * 100) : 0
+        })).sort((a, b) => b.nominal - a.nominal);
 
         return NextResponse.json({
+          totalGrossSales,
+          totalDiscount,
           totalRevenue,
+          totalHpp,
+          totalGrossProfit,
+          grossMarginPct,
           totalExpense,
           totalNetProfit,
+          netProfitMargin,
           totalCount,
           averageTicket,
           categoryBreakdown,
           expenseCategoryBreakdown,
+          productProfitability,
           transactionsList: trxs.map(t => ({
             ...t,
             kasir: t.kasir || (t.user_id ? 'Kasir' : 'Kasir Gerai'),
@@ -328,55 +411,134 @@ export async function GET(req) {
       });
     }
 
-    const totalRevenue = transactions.reduce((sum, t) => sum + t.total, 0);
-    const totalExpense = expenses.reduce((sum, e) => sum + e.nominal, 0);
-    const totalNetProfit = totalRevenue - totalExpense;
+    const kats = db.kategoriProduk || [];
+    const prods = db.produk || [];
+
+    // 1. Hitung Gross Sales, Diskon, HPP, & Profitabilitas Produk
+    let totalGrossSales = 0;
+    let totalDiscount = 0;
+    let totalHpp = 0;
+    const productProfitMap = {};
+
+    const populatedTransactions = transactions.map(t => {
+      const items = db.detailTransaksi.filter(dt => dt.transaksi_id === t.id);
+      const u = db.users ? db.users.find(usr => usr.id === t.user_id) : null;
+      return {
+        ...t,
+        kasir: t.kasir || (u ? u.nama : 'Kasir Gerai'),
+        items
+      };
+    });
+
+    populatedTransactions.forEach(t => {
+      const tDiskon = Number(t.diskon || 0);
+      const tSubtotal = (t.subtotal !== undefined && t.subtotal !== null) 
+        ? Number(t.subtotal) 
+        : (Number(t.total || 0) + tDiskon);
+
+      totalGrossSales += tSubtotal;
+      totalDiscount += tDiskon;
+
+      (t.items || []).forEach(it => {
+        const p = prods.find(prod => prod.id === it.produk_id);
+        const qty = Number(it.qty || 1);
+        const hargaSatuan = Number(it.harga_satuan || (p ? p.harga_jual : 0));
+        const subtotal = Number(it.subtotal || (qty * hargaSatuan));
+        const modalSatuan = (p && p.harga_modal !== undefined && p.harga_modal !== null && Number(p.harga_modal) > 0)
+          ? Number(p.harga_modal)
+          : Math.round(hargaSatuan * 0.6);
+        const itemHpp = qty * modalSatuan;
+        totalHpp += itemHpp;
+
+        const key = it.produk_id || it.nama_produk || 'unknown';
+        if (!productProfitMap[key]) {
+          const katName = (p && p.kategori_id) ? (kats.find(k => k.id === p.kategori_id)?.nama || 'Olahan Susu') : 'Olahan Susu';
+          productProfitMap[key] = {
+            id: key,
+            nama: it.nama_produk || (p ? p.nama : 'Produk'),
+            kategori: katName,
+            qty: 0,
+            grossSales: 0,
+            hpp: 0,
+            grossProfit: 0,
+            marginPct: 0
+          };
+        }
+        productProfitMap[key].qty += qty;
+        productProfitMap[key].grossSales += subtotal;
+        productProfitMap[key].hpp += itemHpp;
+      });
+    });
+
+    const productProfitability = Object.values(productProfitMap).map(item => {
+      const grossProfit = item.grossSales - item.hpp;
+      const marginPct = item.grossSales > 0 ? Math.round((grossProfit / item.grossSales) * 100) : 0;
+      return {
+        ...item,
+        grossProfit,
+        marginPct
+      };
+    }).sort((a, b) => b.grossProfit - a.grossProfit);
+
+    const totalRevenue = totalGrossSales - totalDiscount;
+    const totalGrossProfit = totalRevenue - totalHpp;
+    const grossMarginPct = totalRevenue > 0 ? Math.round((totalGrossProfit / totalRevenue) * 100) : 0;
+
+    const totalExpense = expenses.reduce((sum, e) => sum + Number(e.nominal || 0), 0);
+    const totalNetProfit = totalGrossProfit - totalExpense;
+    const netProfitMargin = totalRevenue > 0 ? Math.round((totalNetProfit / totalRevenue) * 100) : 0;
     const totalCount = transactions.length;
     const averageTicket = totalCount > 0 ? Math.round(totalRevenue / totalCount) : 0;
 
+    // Breakdown Kategori Produk
     const catMap = {};
-    (db.kategoriProduk || []).forEach(k => {
+    kats.forEach(k => {
       catMap[k.id] = { kategori: k.nama, revenue: 0 };
     });
 
-    transactions.forEach(t => {
-      const details = db.detailTransaksi.filter(dt => dt.transaksi_id === t.id);
-      details.forEach(dt => {
-        const p = db.produk.find(prod => prod.id === dt.produk_id);
+    populatedTransactions.forEach(t => {
+      (t.items || []).forEach(dt => {
+        const p = prods.find(prod => prod.id === dt.produk_id);
         if (p && catMap[p.kategori_id]) {
-          catMap[p.kategori_id].revenue += dt.subtotal;
+          catMap[p.kategori_id].revenue += Number(dt.subtotal || 0);
         }
       });
     });
 
     const categoryBreakdown = Object.values(catMap).filter(c => c.revenue > 0);
+    if (categoryBreakdown.length === 0 && totalRevenue > 0) {
+      categoryBreakdown.push({ kategori: 'Produk Susu & Olahan', revenue: totalRevenue });
+    }
 
+    // Breakdown Kategori Pengeluaran
     const expCatMap = {};
     expenses.forEach(e => {
-      expCatMap[e.kategori] = (expCatMap[e.kategori] || 0) + e.nominal;
+      const k = e.kategori || 'Operasional';
+      expCatMap[k] = (expCatMap[k] || 0) + Number(e.nominal || 0);
     });
 
     const expenseCategoryBreakdown = Object.entries(expCatMap).map(([kategori, nominal]) => ({
       kategori,
-      nominal
-    }));
+      nominal,
+      percentage: totalExpense > 0 ? Math.round((nominal / totalExpense) * 100) : 0
+    })).sort((a, b) => b.nominal - a.nominal);
 
     return NextResponse.json({
+      totalGrossSales,
+      totalDiscount,
       totalRevenue,
+      totalHpp,
+      totalGrossProfit,
+      grossMarginPct,
       totalExpense,
       totalNetProfit,
+      netProfitMargin,
       totalCount,
       averageTicket,
       categoryBreakdown,
       expenseCategoryBreakdown,
-      transactionsList: transactions.map(t => {
-        const u = db.users ? db.users.find(usr => usr.id === t.user_id) : null;
-        return {
-          ...t,
-          kasir: t.kasir || (u ? u.nama : 'Kasir Gerai'),
-          items: db.detailTransaksi.filter(dt => dt.transaksi_id === t.id)
-        };
-      }),
+      productProfitability,
+      transactionsList: populatedTransactions,
       expensesList: expenses
     });
   }

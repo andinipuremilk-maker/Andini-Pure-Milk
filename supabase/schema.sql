@@ -59,13 +59,30 @@ CREATE TABLE IF NOT EXISTS public.sellers (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. TABEL: transaksi (Penjualan Kasir - Ramping & Tanpa Kolom Redundan)
+-- 6. TABEL: diskon (Master Promo & Diskon Toko - Dikelola Admin)
+CREATE TABLE IF NOT EXISTS public.diskon (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nama TEXT NOT NULL,
+    tipe TEXT NOT NULL CHECK (tipe IN ('persen', 'nominal')),
+    nilai NUMERIC NOT NULL DEFAULT 0,
+    keterangan TEXT DEFAULT '',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. TABEL: transaksi (Penjualan Kasir - Ramping & Tanpa Kolom Redundan)
 CREATE TABLE IF NOT EXISTS public.transaksi (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     no_transaksi TEXT UNIQUE NOT NULL,
     user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
     seller TEXT NOT NULL DEFAULT 'Umum / Retail',
     tanggal TIMESTAMPTZ DEFAULT NOW(),
+    subtotal BIGINT NOT NULL DEFAULT 0,
+    diskon BIGINT NOT NULL DEFAULT 0,
+    diskon_tipe TEXT DEFAULT 'nominal',
+    diskon_nilai NUMERIC DEFAULT 0,
+    diskon_id UUID REFERENCES public.diskon(id) ON DELETE SET NULL,
+    diskon_nama TEXT DEFAULT '',
     total BIGINT NOT NULL DEFAULT 0,
     bayar BIGINT NOT NULL DEFAULT 0,
     kembalian BIGINT NOT NULL DEFAULT 0,
