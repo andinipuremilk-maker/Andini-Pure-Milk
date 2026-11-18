@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, isSupabaseAvailable } from '../../../lib/supabase';
 import { db, isLocalDbEnabled } from '../../../lib/db';
+import { isDiskonBerlaku, parseRentangTanggal } from '../../../lib/diskon';
 
 export async function GET(req) {
   const searchParams = new URL(req.url).searchParams;
@@ -19,7 +20,8 @@ export async function GET(req) {
 
       const { data, error } = await query;
       if (!error && data) {
-        return NextResponse.json({ diskon: data });
+        // Kasir hanya menerima diskon yang aktif DAN masih dalam rentang tanggal
+        return NextResponse.json({ diskon: activeOnly ? data.filter(d => isDiskonBerlaku(d)) : data });
       }
     } catch (err) {
       console.error('Supabase GET diskon error:', err);
@@ -29,7 +31,7 @@ export async function GET(req) {
   // Fallback In-Memory DB
   let list = db.diskon || [];
   if (activeOnly) {
-    list = list.filter(d => d.is_active !== false);
+    list = list.filter(d => isDiskonBerlaku(d));
   }
 
   return NextResponse.json({ diskon: list });
@@ -43,6 +45,11 @@ export async function POST(req) {
     const nilai = Math.max(0, Number(body?.nilai) || 0);
     const keterangan = (body?.keterangan || '').trim();
     const is_active = body?.is_active !== undefined ? Boolean(body.is_active) : true;
+    const rentang = parseRentangTanggal(body);
+    if (rentang.error) {
+      return NextResponse.json({ error: rentang.error }, { status: 400 });
+    }
+    const { tanggal_mulai, tanggal_selesai } = rentang;
 
     if (!nama) {
       return NextResponse.json({ error: 'Nama diskon / promo tidak boleh kosong.' }, { status: 400 });
@@ -59,7 +66,7 @@ export async function POST(req) {
       try {
         const { data, error } = await supabaseAdmin
           .from('diskon')
-          .insert({ nama, tipe, nilai, keterangan, is_active })
+          .insert({ nama, tipe, nilai, keterangan, is_active, tanggal_mulai, tanggal_selesai })
           .select()
           .single();
 
@@ -84,6 +91,8 @@ export async function POST(req) {
       nilai,
       keterangan,
       is_active,
+      tanggal_mulai,
+      tanggal_selesai,
       created_at: new Date().toISOString()
     };
     db.diskon.unshift(newDiskon);
@@ -108,6 +117,12 @@ export async function PUT(req) {
     const nilai = body?.nilai !== undefined ? Math.max(0, Number(body.nilai) || 0) : undefined;
     const keterangan = body?.keterangan !== undefined ? body.keterangan.trim() : undefined;
     const is_active = body?.is_active !== undefined ? Boolean(body.is_active) : undefined;
+    // Rentang tanggal hanya diubah bila dikirim (toggle status tidak mengirimnya)
+    const ubahTanggal = 'tanggal_mulai' in (body || {}) || 'tanggal_selesai' in (body || {});
+    const rentang = ubahTanggal ? parseRentangTanggal(body) : {};
+    if (rentang.error) {
+      return NextResponse.json({ error: rentang.error }, { status: 400 });
+    }
 
     // 1. Supabase
     if (await isSupabaseAvailable() && supabaseAdmin) {
@@ -118,6 +133,7 @@ export async function PUT(req) {
         if (nilai !== undefined) updateData.nilai = nilai;
         if (keterangan !== undefined) updateData.keterangan = keterangan;
         if (is_active !== undefined) updateData.is_active = is_active;
+        if (ubahTanggal) Object.assign(updateData, rentang);
 
         const { data, error } = await supabaseAdmin
           .from('diskon')
@@ -150,6 +166,7 @@ export async function PUT(req) {
     if (nilai !== undefined) db.diskon[idx].nilai = nilai;
     if (keterangan !== undefined) db.diskon[idx].keterangan = keterangan;
     if (is_active !== undefined) db.diskon[idx].is_active = is_active;
+    if (ubahTanggal) Object.assign(db.diskon[idx], rentang);
 
     return NextResponse.json({ diskon: db.diskon[idx] });
   } catch (err) {

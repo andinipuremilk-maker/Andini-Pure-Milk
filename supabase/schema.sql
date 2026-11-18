@@ -67,8 +67,14 @@ CREATE TABLE IF NOT EXISTS public.diskon (
     nilai NUMERIC NOT NULL DEFAULT 0,
     keterangan TEXT DEFAULT '',
     is_active BOOLEAN DEFAULT TRUE,
+    tanggal_mulai DATE,
+    tanggal_selesai DATE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migrasi: masa berlaku diskon (kosong = tanpa batas, tanggal selesai inklusif)
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS tanggal_mulai DATE;
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS tanggal_selesai DATE;
 
 -- 7. TABEL: transaksi (Penjualan Kasir - Ramping & Tanpa Kolom Redundan)
 CREATE TABLE IF NOT EXISTS public.transaksi (
@@ -134,45 +140,30 @@ CREATE INDEX IF NOT EXISTS idx_produk_kategori ON public.produk (kategori_id);
 CREATE INDEX IF NOT EXISTS idx_booths_nama ON public.booths (nama);
 
 -- ==============================================================================
--- ROW LEVEL SECURITY (RLS)
--- Diaktifkan dengan policy mengizinkan akses melalui Next.js backend API
+-- KEAMANAN: ROW LEVEL SECURITY (RLS)
+-- Semua tabel dikunci. Aplikasi mengakses database HANYA dari server memakai
+-- SUPABASE_SERVICE_ROLE_KEY, yang otomatis melewati RLS. Tanpa policy, kunci
+-- anon/publik tidak bisa membaca atau mengubah data apa pun.
 -- ==============================================================================
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.kategori_produk ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.produk ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.booths ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sellers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.diskon ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transaksi ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.detail_transaksi ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pengeluaran ENABLE ROW LEVEL SECURITY;
 
--- Policy sederhana untuk akses anonim/service key (backend API)
-DO $$
-BEGIN
-    DROP POLICY IF EXISTS "Allow all for authenticated/anon on users" ON public.users;
-    CREATE POLICY "Allow all for authenticated/anon on users" ON public.users FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Allow all on kategori_produk" ON public.kategori_produk;
-    CREATE POLICY "Allow all on kategori_produk" ON public.kategori_produk FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Allow all on produk" ON public.produk;
-    CREATE POLICY "Allow all on produk" ON public.produk FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Allow all on booths" ON public.booths;
-    CREATE POLICY "Allow all on booths" ON public.booths FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Allow all on sellers" ON public.sellers;
-    CREATE POLICY "Allow all on sellers" ON public.sellers FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Allow all on transaksi" ON public.transaksi;
-    CREATE POLICY "Allow all on transaksi" ON public.transaksi FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Allow all on detail_transaksi" ON public.detail_transaksi;
-    CREATE POLICY "Allow all on detail_transaksi" ON public.detail_transaksi FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Allow all on pengeluaran" ON public.pengeluaran;
-    CREATE POLICY "Allow all on pengeluaran" ON public.pengeluaran FOR ALL USING (true) WITH CHECK (true);
-END $$;
+-- Hapus policy lama yang membuka akses penuh untuk anon (versi sebelumnya)
+DROP POLICY IF EXISTS "Allow all for authenticated/anon on users" ON public.users;
+DROP POLICY IF EXISTS "Allow all on kategori_produk" ON public.kategori_produk;
+DROP POLICY IF EXISTS "Allow all on produk" ON public.produk;
+DROP POLICY IF EXISTS "Allow all on booths" ON public.booths;
+DROP POLICY IF EXISTS "Allow all on sellers" ON public.sellers;
+DROP POLICY IF EXISTS "Allow all on transaksi" ON public.transaksi;
+DROP POLICY IF EXISTS "Allow all on detail_transaksi" ON public.detail_transaksi;
+DROP POLICY IF EXISTS "Allow all on pengeluaran" ON public.pengeluaran;
 
 -- ==============================================================================
 -- INITIAL SEED DATA

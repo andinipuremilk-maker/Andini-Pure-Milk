@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin, isSupabaseAvailable } from '../../../lib/supabase';
 import { db } from '../../../lib/db';
 import { getRequestUser } from '../../../lib/session';
+import { isDiskonBerlaku } from '../../../lib/diskon';
 
 export async function GET(req) {
   const searchParams = new URL(req.url).searchParams;
@@ -249,6 +250,23 @@ async function potongStok(details, useSupabase) {
   }
 }
 
+// Pastikan diskon yang dipakai masih aktif & dalam masa berlaku (kasir bisa memegang daftar lama)
+async function cekDiskon(diskonId, useSupabase) {
+  if (!diskonId) return null;
+  let diskon = null;
+  if (useSupabase) {
+    if (!isUuid(diskonId)) return 'Diskon tidak ditemukan.';
+    const { data, error } = await supabaseAdmin.from('diskon').select('*').eq('id', diskonId).maybeSingle();
+    if (error) throw error;
+    diskon = data;
+  } else {
+    diskon = (db.diskon || []).find(d => d.id === diskonId);
+  }
+  if (!diskon) return 'Diskon tidak ditemukan.';
+  if (!isDiskonBerlaku(diskon)) return `Diskon "${diskon.nama}" sudah tidak berlaku. Hapus diskon dari pesanan lalu coba lagi.`;
+  return null;
+}
+
 function errorDatabase(err, pesan) {
   console.error(pesan, err);
   return NextResponse.json(
@@ -298,6 +316,13 @@ export async function POST(req) {
   const booth = transaksiData.booth || 'Gerai Utama';
   const keterangan = (transaksiData.keterangan || '').trim();
   const effectiveUserId = sessionUser?.id || userId || null;
+
+  try {
+    const diskonError = await cekDiskon(diskonId, Boolean(await isSupabaseAvailable() && supabaseAdmin));
+    if (diskonError) return NextResponse.json({ error: diskonError }, { status: 400 });
+  } catch (err) {
+    return errorDatabase(err, 'Gagal memeriksa diskon.');
+  }
 
   // 1. Supabase (mode produksi) — tidak ada fallback diam-diam ke memori
   if (await isSupabaseAvailable() && supabaseAdmin) {
@@ -537,6 +562,11 @@ export async function PUT(req) {
     const diskonNilai = Number(body.diskon_nilai ?? transaksiData?.diskon_nilai ?? currentTx.diskon_nilai ?? 0);
     const diskonId = body.diskon_id !== undefined ? body.diskon_id : (transaksiData?.diskon_id !== undefined ? transaksiData.diskon_id : (currentTx.diskon_id || null));
     const diskonNama = body.diskon_nama !== undefined ? body.diskon_nama : (transaksiData?.diskon_nama !== undefined ? transaksiData.diskon_nama : (currentTx.diskon_nama || null));
+    // Diskon yang sudah tercatat sebelumnya tetap dihormati; diskon yang baru dipilih wajib masih berlaku
+    if (diskonId && diskonId !== currentTx.diskon_id) {
+      const diskonError = await cekDiskon(diskonId, useSupabase);
+      if (diskonError) return NextResponse.json({ error: diskonError }, { status: 400 });
+    }
     const diskonNominal = hitungDiskon(rawSubtotal, diskonTipe, diskonNilai, body.diskon ?? transaksiData?.diskon ?? currentTx.diskon ?? 0);
     const totalSetor = Math.max(0, (body.total !== undefined || transaksiData?.total !== undefined) ? Number(body.total ?? transaksiData?.total) : (rawSubtotal - diskonNominal));
     const finalBayar = Number(body.bayar ?? transaksiData?.bayar ?? totalSetor);

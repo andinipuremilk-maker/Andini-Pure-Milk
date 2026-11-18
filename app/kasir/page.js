@@ -534,7 +534,8 @@ export default function KasirPage() {
         await loadPendingCount();
         alert('Pesanan berhasil ditahan dengan status PENDING. Anda dapat menyelesaikannya dari menu Riwayat Transaksi.');
       } else {
-        alert('Gagal menyimpan transaksi pending.');
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || 'Gagal menyimpan transaksi pending.');
       }
     } catch (err) {
       alert('Terjadi kesalahan jaringan saat menyimpan pending.');
@@ -720,7 +721,8 @@ export default function KasirPage() {
         loadPendingCount();
         loadRiwayat();
       } else {
-        alert('Gagal menyelesaikan transaksi.');
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || 'Gagal menyelesaikan transaksi.');
       }
     } catch (e) {
       alert('Terjadi kesalahan jaringan saat menyelesaikan transaksi.');
