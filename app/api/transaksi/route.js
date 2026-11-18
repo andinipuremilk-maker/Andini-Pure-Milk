@@ -203,17 +203,60 @@ export async function GET(req) {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
 
-function hitungDiskon(rawSubtotal, diskonTipe, diskonNilai, diskonNominalInput) {
-  let diskonNominal = Number(diskonNominalInput) || 0;
-  if (!diskonNominal && diskonNilai > 0) {
-    diskonNominal = diskonTipe === 'persen'
-      ? Math.round((rawSubtotal * diskonNilai) / 100)
-      : Math.min(rawSubtotal, diskonNilai);
+// Hitung rincian & total transaksi di SERVER (nilai dari browser tidak dipercaya).
+// Harga satuan diambil dari tabel produk; hanya admin yang boleh memakai harga khusus.
+function hitungTransaksi(rawItems, produkMap, { isAdmin, diskonTipe, diskonNilai }) {
+  if (!Array.isArray(rawItems) || rawItems.length === 0) {
+    return { error: 'Transaksi harus berisi minimal 1 produk.' };
   }
-  return diskonNominal;
+  let subtotal = 0;
+  let totalModal = 0;
+  const details = [];
+  for (const item of rawItems) {
+    const nama = item.nama || item.nama_produk || 'Produk';
+    const qty = Math.floor(Number(item.qty));
+    if (!Number.isFinite(qty) || qty < 1) return { error: `Jumlah "${nama}" tidak valid.` };
+    const prod = produkMap.get(item.produk_id);
+    if (!prod && !isAdmin) return { error: `Produk "${nama}" tidak ditemukan.` };
+    const harga = (isAdmin || !prod) ? Math.max(0, Number(item.harga_satuan) || 0) : Math.max(0, Number(prod.harga_jual) || 0);
+    const hargaModal = Number(prod?.harga_modal) || Math.round(harga * 0.6);
+    subtotal += qty * harga;
+    totalModal += qty * hargaModal;
+    details.push({
+      id: item.id,
+      produk_id: item.produk_id,
+      nama_produk: item.nama || item.nama_produk || prod?.nama || 'Produk',
+      qty,
+      harga_satuan: harga,
+      harga_modal: hargaModal,
+      subtotal: qty * harga,
+      subtotal_modal: qty * hargaModal,
+      laba: qty * (harga - hargaModal)
+    });
+  }
+  const tipe = diskonTipe === 'persen' ? 'persen' : 'nominal';
+  const nilai = Math.max(0, Number(diskonNilai) || 0);
+  if (tipe === 'persen' && nilai > 100) return { error: 'Diskon persentase maksimal 100%.' };
+  const diskon = tipe === 'persen' ? Math.round((subtotal * nilai) / 100) : Math.min(subtotal, nilai);
+  return { details, subtotal, totalModal, diskonTipe: tipe, diskonNilai: nilai, diskon, total: subtotal - diskon };
 }
 
-// Ambil harga modal produk (untuk perhitungan laba) dari database aktif
+// Tolak penjualan bila stok tidak cukup (qty produk yang sama dijumlahkan, mis. beda kemasan).
+// shortcut: cek lalu potong tidak atomik; dua kasir menjual stok terakhir bersamaan bisa lolos. Upgrade ke fungsi RPC Postgres bila sering terjadi.
+function cekStok(details, produkMap) {
+  const butuh = new Map();
+  for (const d of details) {
+    if (produkMap.has(d.produk_id)) butuh.set(d.produk_id, (butuh.get(d.produk_id) || 0) + d.qty);
+  }
+  for (const [id, qty] of butuh) {
+    const prod = produkMap.get(id);
+    const stok = prod.stok ?? 100;
+    if (stok < qty) return `Stok "${prod.nama}" tidak cukup (tersisa ${stok}, diminta ${qty}).`;
+  }
+  return null;
+}
+
+// Ambil harga jual, harga modal & stok produk dari database aktif
 async function getProdukMap(produkIds, useSupabase) {
   const map = new Map();
   const ids = [...new Set((produkIds || []).filter(Boolean))];
@@ -221,7 +264,7 @@ async function getProdukMap(produkIds, useSupabase) {
   if (useSupabase) {
     const uuidIds = ids.filter(isUuid);
     if (uuidIds.length) {
-      const { data } = await supabaseAdmin.from('produk').select('id, nama, harga_modal, stok').in('id', uuidIds);
+      const { data } = await supabaseAdmin.from('produk').select('id, nama, harga_jual, harga_modal, stok').in('id', uuidIds);
       (data || []).forEach(p => map.set(p.id, p));
     }
   } else {
@@ -252,19 +295,19 @@ async function potongStok(details, useSupabase) {
 
 // Pastikan diskon yang dipakai masih aktif & dalam masa berlaku (kasir bisa memegang daftar lama)
 async function cekDiskon(diskonId, useSupabase) {
-  if (!diskonId) return null;
+  if (!diskonId) return {};
   let diskon = null;
   if (useSupabase) {
-    if (!isUuid(diskonId)) return 'Diskon tidak ditemukan.';
+    if (!isUuid(diskonId)) return { error: 'Diskon tidak ditemukan.' };
     const { data, error } = await supabaseAdmin.from('diskon').select('*').eq('id', diskonId).maybeSingle();
     if (error) throw error;
     diskon = data;
   } else {
     diskon = (db.diskon || []).find(d => d.id === diskonId);
   }
-  if (!diskon) return 'Diskon tidak ditemukan.';
-  if (!isDiskonBerlaku(diskon)) return `Diskon "${diskon.nama}" sudah tidak berlaku. Hapus diskon dari pesanan lalu coba lagi.`;
-  return null;
+  if (!diskon) return { error: 'Diskon tidak ditemukan.' };
+  if (!isDiskonBerlaku(diskon)) return { error: `Diskon "${diskon.nama}" sudah tidak berlaku. Hapus diskon dari pesanan lalu coba lagi.` };
+  return { diskon };
 }
 
 function errorDatabase(err, pesan) {
@@ -301,16 +344,6 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Metode bayar tidak valid.' }, { status: 400 });
   }
 
-  const itemsSubtotal = detailItems.reduce((sum, item) => sum + (Number(item.qty) || 1) * (Number(item.harga_satuan) || 0), 0);
-  const rawSubtotal = Number(transaksiData.subtotal) || itemsSubtotal;
-  const diskonTipe = transaksiData.diskon_tipe || 'nominal';
-  const diskonNilai = Number(transaksiData.diskon_nilai) || 0;
-  const diskonId = transaksiData.diskon_id || null;
-  const diskonNama = (transaksiData.diskon_nama || '').trim() || null;
-  const diskonNominal = hitungDiskon(rawSubtotal, diskonTipe, diskonNilai, transaksiData.diskon);
-  const totalSetor = Math.max(0, transaksiData.total !== undefined ? Number(transaksiData.total) : (rawSubtotal - diskonNominal));
-  const bayar = Number(transaksiData.bayar) || (status === 'pending' ? 0 : totalSetor);
-  const kembalian = Math.max(0, bayar - totalSetor);
   const tanggal = transaksiData.tanggal || new Date().toISOString();
   const kasir = transaksiData.kasir || kasirNama || sessionUser?.nama || 'Kasir Gerai';
   // Booth wajib agar laporan per gerai akurat (tidak ada default diam-diam)
@@ -321,17 +354,40 @@ export async function POST(req) {
   const keterangan = (transaksiData.keterangan || '').trim();
   const effectiveUserId = sessionUser?.id || userId || null;
 
+  const useSupabase = Boolean(await isSupabaseAvailable() && supabaseAdmin);
+  const diskonId = transaksiData.diskon_id || null;
+  let hasil, diskonNama, produkMap;
   try {
-    const diskonError = await cekDiskon(diskonId, Boolean(await isSupabaseAvailable() && supabaseAdmin));
+    // Promo resmi: tipe & nilai diambil dari database. Tanpa promo: diskon manual kasir (dibatasi di hitungTransaksi).
+    const { error: diskonError, diskon: promo } = await cekDiskon(diskonId, useSupabase);
     if (diskonError) return NextResponse.json({ error: diskonError }, { status: 400 });
+    diskonNama = promo?.nama || (transaksiData.diskon_nama || '').trim() || null;
+
+    produkMap = await getProdukMap(detailItems.map(i => i.produk_id), useSupabase);
+    hasil = hitungTransaksi(detailItems, produkMap, {
+      isAdmin: sessionUser?.role === 'admin',
+      diskonTipe: promo ? promo.tipe : transaksiData.diskon_tipe,
+      diskonNilai: promo ? promo.nilai : transaksiData.diskon_nilai
+    });
+    if (hasil.error) return NextResponse.json({ error: hasil.error }, { status: 400 });
+    if (status === 'selesai') {
+      const stokError = cekStok(hasil.details, produkMap);
+      if (stokError) return NextResponse.json({ error: stokError }, { status: 400 });
+    }
   } catch (err) {
-    return errorDatabase(err, 'Gagal memeriksa diskon.');
+    return errorDatabase(err, 'Gagal memeriksa produk & diskon.');
   }
 
+  const { subtotal: rawSubtotal, diskon: diskonNominal, diskonTipe, diskonNilai, total: totalSetor, totalModal } = hasil;
+  const bayar = status === 'pending' ? 0 : (metodeBayar === 'tunai' ? (Number(transaksiData.bayar) || totalSetor) : totalSetor);
+  if (bayar < (status === 'pending' ? 0 : totalSetor)) {
+    return NextResponse.json({ error: 'Uang yang dibayarkan kurang dari total tagihan.' }, { status: 400 });
+  }
+  const kembalian = Math.max(0, bayar - totalSetor);
+
   // 1. Supabase (mode produksi) — tidak ada fallback diam-diam ke memori
-  if (await isSupabaseAvailable() && supabaseAdmin) {
+  if (useSupabase) {
     try {
-      const produkMap = await getProdukMap(detailItems.map(i => i.produk_id), true);
 
       const { data: newTrx, error: trxErr } = await supabaseAdmin
         .from('transaksi')
@@ -360,18 +416,14 @@ export async function POST(req) {
 
       if (trxErr || !newTrx) throw trxErr || new Error('Insert transaksi gagal');
 
-      const detailsToInsert = detailItems.map(item => {
-        const qty = Number(item.qty) || 1;
-        const harga = Number(item.harga_satuan) || 0;
-        return {
-          transaksi_id: newTrx.id,
-          produk_id: isUuid(item.produk_id) ? item.produk_id : null,
-          nama_produk: item.nama || item.nama_produk || produkMap.get(item.produk_id)?.nama || 'Produk',
-          qty,
-          harga_satuan: harga,
-          subtotal: qty * harga
-        };
-      });
+      const detailsToInsert = hasil.details.map(d => ({
+        transaksi_id: newTrx.id,
+        produk_id: isUuid(d.produk_id) ? d.produk_id : null,
+        nama_produk: d.nama_produk,
+        qty: d.qty,
+        harga_satuan: d.harga_satuan,
+        subtotal: d.subtotal
+      }));
 
       const { data: insertedDetails, error: dtErr } = await supabaseAdmin
         .from('detail_transaksi')
@@ -385,11 +437,6 @@ export async function POST(req) {
       }
 
       if (status === 'selesai') await potongStok(detailsToInsert, true);
-
-      const totalModal = detailsToInsert.reduce((sum, d) => {
-        const hm = produkMap.get(d.produk_id)?.harga_modal;
-        return sum + d.qty * (hm ?? Math.round(d.harga_satuan * 0.6));
-      }, 0);
 
       return NextResponse.json({
         ...newTrx,
@@ -407,29 +454,11 @@ export async function POST(req) {
 
   // 2. Database lokal in-memory (mode pengembangan)
   try {
-    let totalModal = 0;
-    const preparedDetails = detailItems.map((item, index) => {
-      const prod = db.produk.find(p => p.id === item.produk_id);
-      const qty = Number(item.qty) || 1;
-      const harga = Number(item.harga_satuan) || 0;
-      const hargaModal = prod ? (prod.harga_modal || Math.round(harga * 0.6)) : Math.round(harga * 0.6);
-      const subtotalModal = qty * hargaModal;
-      const subtotalSetor = qty * harga;
-      totalModal += subtotalModal;
-
-      return {
-        id: `dt${Date.now()}_${index}`,
-        transaksi_id: '',
-        produk_id: item.produk_id,
-        nama_produk: prod ? prod.nama : item.nama || item.nama_produk || 'Produk',
-        qty,
-        harga_satuan: harga,
-        harga_modal: hargaModal,
-        subtotal: subtotalSetor,
-        subtotal_modal: subtotalModal,
-        laba: subtotalSetor - subtotalModal
-      };
-    });
+    const preparedDetails = hasil.details.map((d, index) => ({
+      ...d,
+      id: `dt${Date.now()}_${index}`,
+      transaksi_id: ''
+    }));
 
     const transaksi = {
       id: `t${Date.now()}`,
@@ -533,47 +562,47 @@ export async function PUT(req) {
     const wasPending = currentTx.status === 'pending';
     const isNowSelesai = newStatus === 'selesai';
 
-    const produkMap = await getProdukMap((rawItems || []).map(i => i.produk_id), useSupabase);
-    let rawSubtotal = 0;
-    let totalModal = 0;
-
-    const updatedDetails = (rawItems || []).map((item, idx) => {
-      const qty = Math.max(1, Number(item.qty) || 1);
-      const hargaSatuan = Math.max(0, Number(item.harga_satuan) || 0);
-      const prod = produkMap.get(item.produk_id);
-      const hargaModal = prod ? (prod.harga_modal || Math.round(hargaSatuan * 0.6)) : Math.round(hargaSatuan * 0.6);
-      const subtotal = qty * hargaSatuan;
-      const subtotalModal = qty * hargaModal;
-
-      rawSubtotal += subtotal;
-      totalModal += subtotalModal;
-
-      return {
-        id: item.id || `dt_upd_${Date.now()}_${idx}`,
-        transaksi_id: currentTx.id,
-        produk_id: item.produk_id,
-        nama_produk: prod ? prod.nama : item.nama || item.nama_produk || 'Produk',
-        qty,
-        harga_satuan: hargaSatuan,
-        harga_modal: hargaModal,
-        subtotal,
-        subtotal_modal: subtotalModal,
-        laba: subtotal - subtotalModal
-      };
-    });
-
-    const diskonTipe = body.diskon_tipe || transaksiData?.diskon_tipe || currentTx.diskon_tipe || 'nominal';
-    const diskonNilai = Number(body.diskon_nilai ?? transaksiData?.diskon_nilai ?? currentTx.diskon_nilai ?? 0);
+    const isAdmin = sessionUser?.role === 'admin';
     const diskonId = body.diskon_id !== undefined ? body.diskon_id : (transaksiData?.diskon_id !== undefined ? transaksiData.diskon_id : (currentTx.diskon_id || null));
-    const diskonNama = body.diskon_nama !== undefined ? body.diskon_nama : (transaksiData?.diskon_nama !== undefined ? transaksiData.diskon_nama : (currentTx.diskon_nama || null));
-    // Diskon yang sudah tercatat sebelumnya tetap dihormati; diskon yang baru dipilih wajib masih berlaku
+    let diskonTipe = body.diskon_tipe || transaksiData?.diskon_tipe || currentTx.diskon_tipe || 'nominal';
+    let diskonNilai = Number(body.diskon_nilai ?? transaksiData?.diskon_nilai ?? currentTx.diskon_nilai ?? 0);
+    let diskonNama = body.diskon_nama !== undefined ? body.diskon_nama : (transaksiData?.diskon_nama !== undefined ? transaksiData.diskon_nama : (currentTx.diskon_nama || null));
     if (diskonId && diskonId !== currentTx.diskon_id) {
-      const diskonError = await cekDiskon(diskonId, useSupabase);
+      // Promo yang baru dipilih wajib masih berlaku; tipe & nilainya diambil dari database
+      const { error: diskonError, diskon: promo } = await cekDiskon(diskonId, useSupabase);
       if (diskonError) return NextResponse.json({ error: diskonError }, { status: 400 });
+      ({ tipe: diskonTipe, nilai: diskonNilai, nama: diskonNama } = promo);
+    } else if (diskonId) {
+      // Promo yang sudah tercatat tetap dihormati dengan nilai saat pesanan dibuat
+      diskonTipe = currentTx.diskon_tipe || diskonTipe;
+      diskonNilai = Number(currentTx.diskon_nilai ?? diskonNilai);
     }
-    const diskonNominal = hitungDiskon(rawSubtotal, diskonTipe, diskonNilai, body.diskon ?? transaksiData?.diskon ?? currentTx.diskon ?? 0);
-    const totalSetor = Math.max(0, (body.total !== undefined || transaksiData?.total !== undefined) ? Number(body.total ?? transaksiData?.total) : (rawSubtotal - diskonNominal));
-    const finalBayar = Number(body.bayar ?? transaksiData?.bayar ?? totalSetor);
+
+    const produkMap = await getProdukMap((rawItems || []).map(i => i.produk_id), useSupabase);
+    const hasil = hitungTransaksi(rawItems, produkMap, { isAdmin, diskonTipe, diskonNilai });
+    if (hasil.error) return NextResponse.json({ error: hasil.error }, { status: 400 });
+    if (wasPending && isNowSelesai) {
+      const stokError = cekStok(hasil.details, produkMap);
+      if (stokError) return NextResponse.json({ error: stokError }, { status: 400 });
+    }
+
+    const { subtotal: rawSubtotal, totalModal, diskon: diskonNominal, total: totalSetor } = hasil;
+    ({ diskonTipe, diskonNilai } = hasil);
+    const updatedDetails = hasil.details.map((d, idx) => ({
+      ...d,
+      id: d.id || `dt_upd_${Date.now()}_${idx}`,
+      transaksi_id: currentTx.id
+    }));
+
+    const metodeBayar = body.metode_bayar || transaksiData?.metode_bayar || currentTx.metode_bayar || 'tunai';
+    if (!['tunai', 'qris', 'transfer'].includes(metodeBayar)) {
+      return NextResponse.json({ error: 'Metode bayar tidak valid.' }, { status: 400 });
+    }
+    const finalBayar = newStatus === 'pending' ? 0
+      : (metodeBayar === 'tunai' ? (Number(body.bayar ?? transaksiData?.bayar) || totalSetor) : totalSetor);
+    if (newStatus !== 'pending' && finalBayar < totalSetor) {
+      return NextResponse.json({ error: 'Uang yang dibayarkan kurang dari total tagihan.' }, { status: 400 });
+    }
 
     const updates = {
       subtotal: rawSubtotal,
@@ -585,7 +614,7 @@ export async function PUT(req) {
       total: totalSetor,
       bayar: finalBayar,
       kembalian: Math.max(0, finalBayar - totalSetor),
-      metode_bayar: body.metode_bayar || transaksiData?.metode_bayar || currentTx.metode_bayar || 'tunai',
+      metode_bayar: metodeBayar,
       keterangan: ((body.keterangan !== undefined ? body.keterangan : (transaksiData?.keterangan ?? currentTx.keterangan ?? '')) || '').trim(),
       tanggal: tanggal ? new Date(tanggal).toISOString() : (transaksiData?.tanggal ? new Date(transaksiData.tanggal).toISOString() : currentTx.tanggal),
       seller: body.seller || transaksiData?.seller || currentTx.seller,

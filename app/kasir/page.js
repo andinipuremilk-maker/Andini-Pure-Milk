@@ -2342,6 +2342,8 @@ export default function KasirPage() {
                               className="input-field tabular"
                               value={it.harga_satuan}
                               onChange={e => updateEditItemPrice(idx, e.target.value)}
+                              disabled={currentUser?.role !== 'admin'}
+                              title={currentUser?.role !== 'admin' ? 'Harga mengikuti katalog produk' : undefined}
                               style={{ width: '90px', padding: '0.3rem 0.45rem', fontSize: '0.8125rem', textAlign: 'right', fontWeight: 600 }}
                               min="0"
                             />

@@ -10,6 +10,26 @@ import {
   sessionCookieOptions
 } from '../../../lib/session';
 
+// Penguncian akun: 5 kali salah password => terkunci 15 menit (mencegah tebak password).
+// Disimpan di data user agar berlaku di semua instance server (Vercel).
+const MAKS_GAGAL = 5;
+const LAMA_KUNCI_MS = 15 * 60 * 1000;
+
+function pesanTerkunci(user) {
+  const sampai = user?.terkunci_sampai ? new Date(user.terkunci_sampai).getTime() : 0;
+  if (sampai <= Date.now()) return null;
+  const menit = Math.ceil((sampai - Date.now()) / 60000);
+  return `Akun terkunci karena terlalu banyak percobaan gagal. Coba lagi dalam ${menit} menit.`;
+}
+
+// Hitung percobaan gagal; mengembalikan kolom yang perlu disimpan
+function catatGagal(user) {
+  const gagal = (Number(user.gagal_login) || 0) + 1;
+  return gagal >= MAKS_GAGAL
+    ? { gagal_login: 0, terkunci_sampai: new Date(Date.now() + LAMA_KUNCI_MS).toISOString() }
+    : { gagal_login: gagal, terkunci_sampai: null };
+}
+
 // Validasi akun (role, status aktif) lalu buat cookie sesi
 async function finishLogin(user, role) {
   if (user.role !== role) {
@@ -57,13 +77,18 @@ export async function POST(req) {
         console.error('Supabase Auth Error:', error);
         return NextResponse.json({ error: 'Database tidak dapat dihubungi. Coba lagi.' }, { status: 503 });
       }
+      const terkunci = pesanTerkunci(user);
+      if (terkunci) return NextResponse.json({ error: terkunci }, { status: 429 });
       if (!user || !verifyPassword(password, user.password)) {
+        if (user) await supabaseAdmin.from('users').update(catatGagal(user)).eq('id', user.id);
         return NextResponse.json({ error: 'Username atau password salah.' }, { status: 401 });
       }
 
-      // Upgrade otomatis password lama (polos) menjadi hash
-      if (!isHashed(user.password)) {
-        await supabaseAdmin.from('users').update({ password: hashPassword(password) }).eq('id', user.id);
+      // Reset hitungan gagal + upgrade otomatis password lama (polos) menjadi hash
+      const reset = { gagal_login: 0, terkunci_sampai: null };
+      if (!isHashed(user.password)) reset.password = hashPassword(password);
+      if (user.gagal_login || user.terkunci_sampai || reset.password) {
+        await supabaseAdmin.from('users').update(reset).eq('id', user.id);
       }
       return finishLogin(user, role);
     }
@@ -75,9 +100,13 @@ export async function POST(req) {
     if (!db.users) db.users = [];
 
     const user = db.users.find(u => u.username?.toLowerCase() === cleanUsername);
+    const terkunci = pesanTerkunci(user);
+    if (terkunci) return NextResponse.json({ error: terkunci }, { status: 429 });
     if (!user || !verifyPassword(password, user.password)) {
+      if (user) Object.assign(user, catatGagal(user));
       return NextResponse.json({ error: 'Username atau password salah.' }, { status: 401 });
     }
+    Object.assign(user, { gagal_login: 0, terkunci_sampai: null });
     if (!isHashed(user.password)) user.password = hashPassword(password);
 
     return finishLogin(user, role);

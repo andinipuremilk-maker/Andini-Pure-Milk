@@ -20,6 +20,10 @@ CREATE TABLE IF NOT EXISTS public.users (
 );
 
 -- 3. TABEL: kategori_produk
+-- Migrasi: penguncian login setelah 5 kali salah password
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS gagal_login INT DEFAULT 0;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS terkunci_sampai TIMESTAMPTZ;
+
 CREATE TABLE IF NOT EXISTS public.kategori_produk (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nama TEXT UNIQUE NOT NULL,
