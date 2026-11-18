@@ -412,7 +412,7 @@ export default function KasirPage() {
     const user = currentUser || JSON.parse(localStorage.getItem('user')) || { id: 'u3', nama: 'Kasir Outlet Andini' };
     const effectiveSeller = getEffectiveSeller();
     const kasirNama = user.nama || user.username || 'Kasir Outlet Andini';
-    const boothName = user.booth || 'Gerai Utama';
+    const boothName = user.booth || '';
 
     try {
       const res = await fetch('/api/transaksi', {
@@ -494,7 +494,7 @@ export default function KasirPage() {
     const user = currentUser || JSON.parse(localStorage.getItem('user')) || { id: 'u3', nama: 'Kasir Outlet Andini' };
     const effectiveSeller = getEffectiveSeller();
     const kasirNama = user.nama || user.username || 'Kasir Outlet Andini';
-    const boothName = user.booth || 'Gerai Utama';
+    const boothName = user.booth || '';
 
     try {
       const res = await fetch('/api/transaksi', {

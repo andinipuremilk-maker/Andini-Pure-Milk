@@ -121,8 +121,8 @@ function LoginForm() {
     e.preventDefault();
     setError('');
 
-    // Validasi booth: Wajib memilih booth sebelum masuk!
-    if (!selectedBooth || selectedBooth.trim() === '') {
+    // Validasi booth: wajib untuk kasir. Admin memilih booth di Terminal Kasir saat berjualan.
+    if (role === 'kasir' && (!selectedBooth || selectedBooth.trim() === '')) {
       setError('Silakan pilih lokasi booth penjualan sebelum melanjutkan.');
       return;
     }
@@ -132,8 +132,8 @@ function LoginForm() {
       return;
     }
 
-    let effectiveBooth = selectedBooth;
-    if (selectedBooth === 'Lainnya (Kustom)') {
+    let effectiveBooth = role === 'kasir' ? selectedBooth : '';
+    if (role === 'kasir' && selectedBooth === 'Lainnya (Kustom)') {
       if (!customBooth.trim()) {
         setError('Silakan masukkan nama booth penjualan kustom Anda.');
         return;
@@ -349,7 +349,8 @@ function LoginForm() {
 
           {/* Form Login */}
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {/* Booth Penjualan (Selalu Muncul) */}
+            {/* Booth Penjualan (khusus kasir) */}
+            {role === 'kasir' && (
             <div style={{
               padding: '0.85rem',
               backgroundColor: 'var(--surface-subtle)',
@@ -487,6 +488,7 @@ function LoginForm() {
                 </div>
               )}
             </div>
+            )}
 
             {/* Username Input */}
             <div>

@@ -313,7 +313,11 @@ export async function POST(req) {
   const kembalian = Math.max(0, bayar - totalSetor);
   const tanggal = transaksiData.tanggal || new Date().toISOString();
   const kasir = transaksiData.kasir || kasirNama || sessionUser?.nama || 'Kasir Gerai';
-  const booth = transaksiData.booth || 'Gerai Utama';
+  // Booth wajib agar laporan per gerai akurat (tidak ada default diam-diam)
+  const booth = String(transaksiData.booth || '').trim();
+  if (!booth) {
+    return NextResponse.json({ error: 'Booth penjualan wajib dipilih sebelum menyimpan transaksi.' }, { status: 400 });
+  }
   const keterangan = (transaksiData.keterangan || '').trim();
   const effectiveUserId = sessionUser?.id || userId || null;
 
