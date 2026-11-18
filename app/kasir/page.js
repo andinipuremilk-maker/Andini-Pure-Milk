@@ -768,10 +768,10 @@ export default function KasirPage() {
   );
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-bg-light)', position: 'relative' }}>
+    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-bg-light)', position: 'relative' }}>
 
       {/* Header POS Kasir */}
-      <header style={{
+      <header className="kasir-header" style={{
         padding: '0.65rem 1.25rem',
         borderBottom: '1px solid var(--border-subtle)',
         display: 'flex',
@@ -781,7 +781,7 @@ export default function KasirPage() {
         gap: '0.75rem',
         flexWrap: 'wrap'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
+        <div className="kasir-header-brand" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
           <div style={{
             width: '32px',
             height: '32px',
@@ -814,7 +814,7 @@ export default function KasirPage() {
         </div>
 
         {/* Action Toolbar Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div className="kasir-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
 
           {/* Tombol Pop-up Riwayat Transaksi */}
           <button
@@ -832,7 +832,7 @@ export default function KasirPage() {
             }}
           >
             <IconReceipt size={14} />
-            <span>Riwayat Transaksi</span>
+            <span className="kasir-btn-label">Riwayat Transaksi</span>
             {pendingCount > 0 && (
               <span style={{
                 backgroundColor: 'var(--status-warning)',
@@ -866,7 +866,7 @@ export default function KasirPage() {
               }}
             >
               <IconShield size={14} />
-              <span>Panel Admin</span>
+              <span className="kasir-btn-label">Panel Admin</span>
             </button>
           )}
 
@@ -886,12 +886,12 @@ export default function KasirPage() {
               title="Kelola Diskon & Promo Penjualan (Khusus Admin)"
             >
               <IconTag size={14} />
-              <span>Kelola Diskon</span>
+              <span className="kasir-btn-label">Kelola Diskon</span>
             </button>
           )}
 
           {/* Dropdown Booth Penjualan Kasir di Header */}
-          <div style={{
+          <div className="kasir-booth-select" style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: '0.35rem',
@@ -941,7 +941,7 @@ export default function KasirPage() {
             </select>
           </div>
 
-          <span className="badge-neutral" style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }} suppressHydrationWarning>
+          <span className="badge-neutral kasir-user-badge" style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }} suppressHydrationWarning>
             <IconUser size={13} />
             <span>{mounted && currentUser?.nama ? currentUser.nama : 'Kasir'}</span>
           </span>
@@ -953,7 +953,7 @@ export default function KasirPage() {
             title="Keluar / Ganti Akun"
           >
             <IconLogOut size={13} />
-            <span>Keluar</span>
+            <span className="kasir-btn-label">Keluar</span>
           </button>
         </div>
       </header>
@@ -1077,8 +1077,8 @@ export default function KasirPage() {
           </div>
 
           {/* Product Grid */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', paddingBottom: '5rem' }}>
-            <div style={{
+          <div className="kasir-product-scroll" style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', paddingBottom: '5rem' }}>
+            <div className="kasir-product-grid" style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
               gap: '0.85rem'
@@ -1115,7 +1115,7 @@ export default function KasirPage() {
                     }}
                   >
                     {/* Foto Produk */}
-                    <div style={{
+                    <div className="kasir-product-photo" style={{
                       position: 'relative',
                       width: '100%',
                       height: '115px',
@@ -1200,7 +1200,7 @@ export default function KasirPage() {
                             {getCategoryName(p.kategori_id)}
                           </span>
                           {hasPackaging && (
-                            <span className="badge-neutral" style={{ fontSize: '0.625rem', padding: '0.08rem 0.35rem', borderRadius: 'var(--radius-sm)', flexShrink: 0 }}>
+                            <span className="badge-neutral kasir-variant-badge" style={{ fontSize: '0.625rem', padding: '0.08rem 0.35rem', borderRadius: 'var(--radius-sm)', flexShrink: 0 }}>
                               Botol Kecil / Besar
                             </span>
                           )}
@@ -1234,6 +1234,42 @@ export default function KasirPage() {
               })}
             </div>
           </div>
+
+          {/* Bar Keranjang Melayang (khusus HP, tampil saat ada item) */}
+          {totalQty > 0 && (
+            <button
+              type="button"
+              className="kasir-floating-cart safe-bottom"
+              onClick={() => setMobileTab('cart')}
+              style={{
+                display: 'none',
+                position: 'absolute',
+                left: '0.75rem',
+                right: '0.75rem',
+                bottom: '0.75rem',
+                padding: '0.8rem 1rem',
+                borderRadius: 'var(--radius-lg)',
+                backgroundColor: 'var(--accent-primary)',
+                color: 'var(--text-inverse)',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.75rem',
+                boxShadow: 'var(--shadow-lg)',
+                zIndex: 20,
+                fontWeight: 600,
+                fontSize: '0.875rem'
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <IconCart size={16} />
+                <span>{totalQty} item</span>
+              </span>
+              <span className="tabular" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                Rp {total.toLocaleString('id-ID')}
+                <IconArrowRight size={15} />
+              </span>
+            </button>
+          )}
         </section>
 
         {/* Right Side: Order Summary Cart */}
@@ -1496,6 +1532,56 @@ export default function KasirPage() {
           }
           .kasir-back-to-menu-btn {
             display: inline-block !important;
+          }
+          .kasir-floating-cart {
+            display: flex !important;
+          }
+        }
+
+        /* Layout kasir khusus layar HP */
+        @media (max-width: 640px) {
+          .kasir-header {
+            padding: 0.5rem 0.75rem !important;
+            gap: 0.5rem !important;
+          }
+          .kasir-header-brand {
+            flex: 1;
+          }
+          .kasir-header-actions {
+            display: contents !important;
+          }
+          .kasir-btn-label,
+          .kasir-user-badge {
+            display: none !important;
+          }
+          .kasir-header-actions > button {
+            min-height: 38px;
+            min-width: 38px;
+            padding: 0.45rem 0.6rem !important;
+          }
+          .kasir-booth-select {
+            order: 10;
+            flex: 1 1 100%;
+            padding: 0.2rem 0.55rem !important;
+          }
+          .kasir-booth-select select {
+            flex: 1;
+            max-width: none !important;
+            width: 100%;
+          }
+          .kasir-product-scroll {
+            padding: 0.75rem !important;
+            padding-bottom: 6rem !important;
+          }
+          .kasir-product-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 0.6rem !important;
+          }
+          .kasir-product-photo {
+            height: 96px !important;
+          }
+          .kasir-variant-badge {
+            display: none !important;
           }
         }
       `}</style>
