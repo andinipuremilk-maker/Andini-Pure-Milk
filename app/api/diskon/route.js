@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, isSupabaseAvailable } from '../../../lib/supabase';
-import { db } from '../../../lib/db';
+import { db, isLocalDbEnabled } from '../../../lib/db';
 
 export async function GET(req) {
   const searchParams = new URL(req.url).searchParams;
@@ -65,7 +65,7 @@ export async function POST(req) {
 
         if (!error && data) {
           // Sync with local memory
-          if (db.diskon) {
+          if (isLocalDbEnabled && db.diskon) {
             db.diskon.unshift(data);
           }
           return NextResponse.json({ diskon: data });
@@ -127,7 +127,7 @@ export async function PUT(req) {
           .single();
 
         if (!error && data) {
-          if (db.diskon) {
+          if (isLocalDbEnabled && db.diskon) {
             const idx = db.diskon.findIndex(d => d.id === id);
             if (idx >= 0) db.diskon[idx] = { ...db.diskon[idx], ...data };
           }
@@ -182,7 +182,7 @@ export async function DELETE(req) {
           .eq('id', id);
 
         if (!error) {
-          if (db.diskon) {
+          if (isLocalDbEnabled && db.diskon) {
             db.diskon = db.diskon.filter(d => d.id !== id);
           }
           return NextResponse.json({ success: true, message: 'Diskon berhasil dihapus.' });

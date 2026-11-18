@@ -54,6 +54,8 @@ export default function AdminLayout({ children }) {
   }, [router]);
 
   const handleLogout = () => {
+    // Hapus cookie sesi di server
+    fetch('/api/auth', { method: 'DELETE' }).catch(() => {});
     localStorage.removeItem('user');
     router.push('/login?role=admin');
   };

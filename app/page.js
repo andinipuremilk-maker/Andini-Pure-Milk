@@ -20,6 +20,8 @@ export default function LandingPage() {
   }, []);
 
   const handleLogout = () => {
+    // Hapus cookie sesi di server
+    fetch('/api/auth', { method: 'DELETE' }).catch(() => {});
     localStorage.removeItem('user');
     setCurrentUser(null);
     router.push('/login?role=kasir');

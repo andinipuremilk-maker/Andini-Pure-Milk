@@ -249,6 +249,8 @@ export default function KasirPage() {
   }, [router]);
 
   const handleLogout = () => {
+    // Hapus cookie sesi di server
+    fetch('/api/auth', { method: 'DELETE' }).catch(() => {});
     localStorage.removeItem('user');
     router.push('/login?role=kasir');
   };
@@ -401,6 +403,11 @@ export default function KasirPage() {
 
   // Pembayaran Langsung
   const handlePayment = async () => {
+    // Booth wajib dipilih agar laporan penjualan per gerai akurat
+    if (!currentUser?.booth) {
+      alert('Pilih Booth Penjualan terlebih dahulu (menu di bagian atas layar).');
+      return;
+    }
     setProcessing(true);
     const user = currentUser || JSON.parse(localStorage.getItem('user')) || { id: 'u3', nama: 'Kasir Outlet Andini' };
     const effectiveSeller = getEffectiveSeller();
@@ -460,7 +467,13 @@ export default function KasirPage() {
         setShowReceipt(true);
         loadPendingCount();
       } else {
-        alert('Gagal memproses transaksi.');
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          alert('Sesi login berakhir. Silakan login kembali.');
+          router.push('/login?role=kasir');
+          return;
+        }
+        alert(errData.error || 'Gagal memproses transaksi.');
       }
     } catch (e) {
       alert('Terjadi kesalahan jaringan.');
@@ -471,6 +484,11 @@ export default function KasirPage() {
 
   // Simpan Transaksi sebagai Pending (Tahan Pesanan)
   const handleSavePending = async () => {
+    // Booth wajib dipilih agar laporan penjualan per gerai akurat
+    if (!currentUser?.booth) {
+      alert('Pilih Booth Penjualan terlebih dahulu (menu di bagian atas layar).');
+      return;
+    }
     if (order.length === 0) return;
     setSavingPending(true);
     const user = currentUser || JSON.parse(localStorage.getItem('user')) || { id: 'u3', nama: 'Kasir Outlet Andini' };

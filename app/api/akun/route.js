@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, isSupabaseConfigured, isSupabaseAvailable } from '../../../lib/supabase';
 import { db } from '../../../lib/db';
+import { hashPassword } from '../../../lib/password';
 
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
@@ -134,7 +135,7 @@ export async function POST(req) {
         .insert({
           nama: nama.trim(),
           username: cleanUsername,
-          password: password.trim(),
+          password: hashPassword(password.trim()),
           role: role.trim().toLowerCase(),
           shift: shift?.trim() || (role.toLowerCase() === 'kasir' ? 'Shift POS' : 'Standar'),
           is_active: true
@@ -165,7 +166,7 @@ export async function POST(req) {
       id: `u_${Date.now()}`,
       nama: nama.trim(),
       username: cleanUsername,
-      password: password.trim(),
+      password: hashPassword(password.trim()),
       role: role.trim().toLowerCase(),
       shift: shift?.trim() || (role.toLowerCase() === 'kasir' ? 'Shift POS' : 'Standar'),
       tanggal_masuk: new Date().toISOString().split('T')[0],
@@ -200,7 +201,7 @@ export async function PUT(req) {
       if (nama) updatePayload.nama = nama.trim();
       if (role) updatePayload.role = role.trim().toLowerCase();
       if (shift !== undefined) updatePayload.shift = shift.trim() || 'Standar';
-      if (password && password.trim() !== '') updatePayload.password = password.trim();
+      if (password && password.trim() !== '') updatePayload.password = hashPassword(password.trim());
       if (is_active !== undefined) {
         if (username === 'admin' && is_active === false) {
           return NextResponse.json({ error: 'Akun Admin Utama tidak boleh dinonaktifkan.' }, { status: 400 });
@@ -256,7 +257,7 @@ export async function PUT(req) {
     if (nama) target.nama = nama.trim();
     if (role) target.role = role.trim().toLowerCase();
     if (shift !== undefined) target.shift = shift.trim() || 'Standar';
-    if (password && password.trim() !== '') target.password = password.trim();
+    if (password && password.trim() !== '') target.password = hashPassword(password.trim());
     if (is_active !== undefined) {
       if ((target.id === 'u1' || target.username === 'admin') && is_active === false) {
         return NextResponse.json({ error: 'Akun Admin Utama tidak boleh dinonaktifkan.' }, { status: 400 });

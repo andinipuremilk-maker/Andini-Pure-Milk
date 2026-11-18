@@ -75,6 +75,8 @@ CREATE TABLE IF NOT EXISTS public.transaksi (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     no_transaksi TEXT UNIQUE NOT NULL,
     user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+    kasir TEXT DEFAULT '',
+    booth TEXT DEFAULT '',
     seller TEXT NOT NULL DEFAULT 'Umum / Retail',
     tanggal TIMESTAMPTZ DEFAULT NOW(),
     subtotal BIGINT NOT NULL DEFAULT 0,
@@ -93,6 +95,10 @@ CREATE TABLE IF NOT EXISTS public.transaksi (
 );
 
 -- 7. TABEL: detail_transaksi (Rincian Produk Tiap Nota Transaksi)
+-- Migrasi untuk database yang sudah ada: simpan nama kasir & booth per transaksi
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS kasir TEXT DEFAULT '';
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS booth TEXT DEFAULT '';
+
 CREATE TABLE IF NOT EXISTS public.detail_transaksi (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     transaksi_id UUID NOT NULL REFERENCES public.transaksi(id) ON DELETE CASCADE,
