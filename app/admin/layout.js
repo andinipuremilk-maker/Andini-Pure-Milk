@@ -9,7 +9,6 @@ import {
   IconPackage,
   IconStore,
   IconUsers,
-  IconShield,
   IconFileText,
   IconCart,
   IconLogOut,
@@ -330,27 +329,6 @@ export default function AdminLayout({ children }) {
           }}
         >
           <IconUsers size={16} />
-          <span>Karyawan</span>
-        </Link>
-
-        {/* Manajemen Akun */}
-        <Link
-          href="/admin/akun"
-          onClick={() => setMobileMenuOpen(false)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.65rem',
-            padding: '0.55rem 0.75rem',
-            borderRadius: 'var(--radius-md)',
-            fontSize: '0.8125rem',
-            fontWeight: pathname === '/admin/akun' ? 600 : 500,
-            backgroundColor: pathname === '/admin/akun' ? 'var(--accent-subtle)' : 'transparent',
-            color: pathname === '/admin/akun' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-            transition: 'all 0.12s ease'
-          }}
-        >
-          <IconShield size={16} />
           <span>Manajemen Akun</span>
         </Link>
 
@@ -506,8 +484,7 @@ export default function AdminLayout({ children }) {
             <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-primary)' }}>
               {pathname === '/admin/dashboard' ? 'Dashboard' : 
                pathname === '/admin/produk' ? 'Produk & Stok' : 
-               pathname === '/admin/karyawan' ? 'Karyawan' : 
-               pathname === '/admin/akun' ? 'Manajemen Akun' : 
+               pathname === '/admin/karyawan' ? 'Manajemen Akun' : 
                pathname === '/admin/laporan' ? 'Laporan Keuangan' : 
                pathname.includes('pemasukan') ? 'Transaksi Pemasukan' : 
                pathname.includes('pengeluaran') ? 'Transaksi Pengeluaran' : 'Admin'}
