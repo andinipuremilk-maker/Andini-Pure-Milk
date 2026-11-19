@@ -139,6 +139,82 @@ CREATE TABLE IF NOT EXISTS public.pengeluaran (
 -- ==============================================================================
 -- INDEXING UNTUK KECEPATAN QUERY
 -- ==============================================================================
+-- MIGRASI KOLOM: tabel yang dibuat dengan versi skema lama tidak otomatis mendapat
+-- kolom baru dari CREATE TABLE IF NOT EXISTS. Baris di bawah menambahkan kolom yang
+-- belum ada tanpa mengubah data. Aman dijalankan berulang kali.
+-- ==============================================================================
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS nama TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS username TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS password TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS role TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS shift TEXT DEFAULT 'Shift 1 (08:00 - 16:00)';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS tanggal_masuk DATE DEFAULT CURRENT_DATE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.kategori_produk ADD COLUMN IF NOT EXISTS nama TEXT;
+ALTER TABLE public.kategori_produk ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS kategori_id UUID;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS nama TEXT;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS sku TEXT;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS harga_jual BIGINT DEFAULT 0;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS harga_modal BIGINT DEFAULT 0;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS stok INT DEFAULT 100;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS variants JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.booths ADD COLUMN IF NOT EXISTS nama TEXT;
+ALTER TABLE public.booths ADD COLUMN IF NOT EXISTS lokasi TEXT DEFAULT '';
+ALTER TABLE public.booths ADD COLUMN IF NOT EXISTS penanggung_jawab TEXT DEFAULT '';
+ALTER TABLE public.booths ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.booths ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.sellers ADD COLUMN IF NOT EXISTS nama TEXT;
+ALTER TABLE public.sellers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.sellers ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS nama TEXT;
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS tipe TEXT;
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS nilai NUMERIC DEFAULT 0;
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS keterangan TEXT DEFAULT '';
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS tanggal_mulai DATE;
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS tanggal_selesai DATE;
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS no_transaksi TEXT;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS user_id UUID;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS kasir TEXT DEFAULT '';
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS booth TEXT DEFAULT '';
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS seller TEXT DEFAULT 'Umum / Retail';
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS tanggal TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS subtotal BIGINT DEFAULT 0;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS diskon BIGINT DEFAULT 0;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS diskon_tipe TEXT DEFAULT 'nominal';
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS diskon_nilai NUMERIC DEFAULT 0;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS diskon_id UUID;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS diskon_nama TEXT DEFAULT '';
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS total BIGINT DEFAULT 0;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS bayar BIGINT DEFAULT 0;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS kembalian BIGINT DEFAULT 0;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS metode_bayar TEXT;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS keterangan TEXT DEFAULT '';
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'selesai';
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.detail_transaksi ADD COLUMN IF NOT EXISTS transaksi_id UUID;
+ALTER TABLE public.detail_transaksi ADD COLUMN IF NOT EXISTS produk_id UUID;
+ALTER TABLE public.detail_transaksi ADD COLUMN IF NOT EXISTS nama_produk TEXT;
+ALTER TABLE public.detail_transaksi ADD COLUMN IF NOT EXISTS qty INT DEFAULT 1;
+ALTER TABLE public.detail_transaksi ADD COLUMN IF NOT EXISTS harga_satuan BIGINT DEFAULT 0;
+ALTER TABLE public.detail_transaksi ADD COLUMN IF NOT EXISTS subtotal BIGINT DEFAULT 0;
+ALTER TABLE public.detail_transaksi ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.pengeluaran ADD COLUMN IF NOT EXISTS no_transaksi TEXT;
+ALTER TABLE public.pengeluaran ADD COLUMN IF NOT EXISTS tanggal TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.pengeluaran ADD COLUMN IF NOT EXISTS kategori TEXT;
+ALTER TABLE public.pengeluaran ADD COLUMN IF NOT EXISTS deskripsi TEXT;
+ALTER TABLE public.pengeluaran ADD COLUMN IF NOT EXISTS nominal BIGINT DEFAULT 0;
+ALTER TABLE public.pengeluaran ADD COLUMN IF NOT EXISTS metode_bayar TEXT DEFAULT 'tunai';
+ALTER TABLE public.pengeluaran ADD COLUMN IF NOT EXISTS pj TEXT DEFAULT 'Admin';
+ALTER TABLE public.pengeluaran ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
+-- ==============================================================================
 CREATE INDEX IF NOT EXISTS idx_transaksi_tanggal ON public.transaksi (tanggal DESC);
 CREATE INDEX IF NOT EXISTS idx_transaksi_seller ON public.transaksi (seller);
 CREATE INDEX IF NOT EXISTS idx_detail_transaksi_trx ON public.detail_transaksi (transaksi_id);
