@@ -120,6 +120,9 @@ CREATE TABLE IF NOT EXISTS public.detail_transaksi (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Migrasi: modal per item saat transaksi terjadi (laba historis tidak berubah saat harga modal produk diubah)
+ALTER TABLE public.detail_transaksi ADD COLUMN IF NOT EXISTS harga_modal NUMERIC;
+
 -- 8. TABEL: pengeluaran (Beban & Biaya Operasional Toko)
 CREATE TABLE IF NOT EXISTS public.pengeluaran (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

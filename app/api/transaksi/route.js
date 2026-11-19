@@ -422,6 +422,7 @@ export async function POST(req) {
         nama_produk: d.nama_produk,
         qty: d.qty,
         harga_satuan: d.harga_satuan,
+        harga_modal: d.harga_modal,
         subtotal: d.subtotal
       }));
 
@@ -638,6 +639,7 @@ export async function PUT(req) {
         nama_produk: d.nama_produk,
         qty: d.qty,
         harga_satuan: d.harga_satuan,
+        harga_modal: d.harga_modal,
         subtotal: d.subtotal
       }));
       if (supaDetails.length) {

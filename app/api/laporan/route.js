@@ -142,10 +142,10 @@ export async function GET(req) {
             items:detail_transaksi(
               id,
               produk_id,
-              kategori_id,
               nama_produk,
               qty,
               harga_satuan,
+              harga_modal,
               subtotal
             )
           `)
@@ -198,9 +198,10 @@ export async function GET(req) {
             const qty = Number(it.qty || 1);
             const hargaSatuan = Number(it.harga_satuan || (p ? p.harga_jual : 0));
             const subtotal = Number(it.subtotal || (qty * hargaSatuan));
-            const modalSatuan = (p && p.harga_modal !== undefined && p.harga_modal !== null && Number(p.harga_modal) > 0)
-              ? Number(p.harga_modal)
-              : Math.round(hargaSatuan * 0.6);
+            // Modal historis per item (tersimpan saat transaksi/impor) lebih akurat dari harga modal produk saat ini
+            const modalSatuan = (it.harga_modal !== undefined && it.harga_modal !== null)
+              ? Number(it.harga_modal)
+              : (p && Number(p.harga_modal) > 0) ? Number(p.harga_modal) : Math.round(hargaSatuan * 0.6);
             const itemHpp = qty * modalSatuan;
             totalHpp += itemHpp;
 
@@ -250,7 +251,7 @@ export async function GET(req) {
 
         trxs.forEach(t => {
           (t.items || []).forEach(it => {
-            const catId = it.kategori_id || kats[0]?.id;
+            const catId = prodMap[it.produk_id]?.kategori_id || kats[0]?.id;
             if (catId && catMap[catId]) {
               catMap[catId].revenue += Number(it.subtotal || 0);
             }
@@ -444,9 +445,9 @@ export async function GET(req) {
         const qty = Number(it.qty || 1);
         const hargaSatuan = Number(it.harga_satuan || (p ? p.harga_jual : 0));
         const subtotal = Number(it.subtotal || (qty * hargaSatuan));
-        const modalSatuan = (p && p.harga_modal !== undefined && p.harga_modal !== null && Number(p.harga_modal) > 0)
-          ? Number(p.harga_modal)
-          : Math.round(hargaSatuan * 0.6);
+        const modalSatuan = (it.harga_modal !== undefined && it.harga_modal !== null)
+          ? Number(it.harga_modal)
+          : (p && Number(p.harga_modal) > 0) ? Number(p.harga_modal) : Math.round(hargaSatuan * 0.6);
         const itemHpp = qty * modalSatuan;
         totalHpp += itemHpp;
 
