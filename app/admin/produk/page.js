@@ -94,7 +94,11 @@ export default function ProdukPage() {
             harga_modal: item.harga_modal ?? '',
             stok: item.stok ?? 100,
             image_url: item.image_url || '',
-            has_variants: hasVariants
+            has_variants: hasVariants,
+            harga_jual_kcl: item.variants?.find(v => v.id === 'v_kcl')?.harga_jual ?? item.harga_jual ?? '',
+            harga_modal_kcl: item.variants?.find(v => v.id === 'v_kcl')?.harga_modal ?? item.harga_modal ?? '',
+            harga_jual_bsr: item.variants?.find(v => v.id === 'v_bsr')?.harga_jual ?? item.harga_jual ?? '',
+            harga_modal_bsr: item.variants?.find(v => v.id === 'v_bsr')?.harga_modal ?? item.harga_modal ?? ''
           } 
         : { 
             nama: '', 
@@ -114,18 +118,20 @@ export default function ProdukPage() {
     e.preventDefault();
     setProcessing(true);
 
+    const num = (v) => parseInt(v, 10) || 0;
     const variantsPayload = formData.has_variants
       ? [
-          { id: 'v_kcl', nama: 'Botol Kecil (250ml)' },
-          { id: 'v_bsr', nama: 'Botol Besar (1 Liter)' }
+          { id: 'v_kcl', nama: 'Botol Kecil (250ml)', harga_jual: num(formData.harga_jual_kcl), harga_modal: num(formData.harga_modal_kcl) },
+          { id: 'v_bsr', nama: 'Botol Besar (1 Liter)', harga_jual: num(formData.harga_jual_bsr), harga_modal: num(formData.harga_modal_bsr) }
         ]
       : [];
 
     const method = editItem ? 'PUT' : 'POST';
     const payload = { 
       ...formData, 
-      harga_jual: parseInt(formData.harga_jual, 10) || 0,
-      harga_modal: parseInt(formData.harga_modal, 10) || 0,
+      // Produk bervarian: harga dasar mengikuti Botol Kecil
+      harga_jual: formData.has_variants ? num(formData.harga_jual_kcl) : num(formData.harga_jual),
+      harga_modal: formData.has_variants ? num(formData.harga_modal_kcl) : num(formData.harga_modal),
       stok: parseInt(formData.stok, 10) || 0,
       has_variants: Boolean(formData.has_variants),
       variants: variantsPayload
@@ -603,11 +609,31 @@ export default function ProdukPage() {
                 </label>
                 {formData.has_variants && (
                   <p style={{ margin: '0.35rem 0 0 1.5rem', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                    Kasir akan memunculkan pilihan status Botol Kecil & Botol Besar saat produk ini dipilih. Harga otomatis mengikuti harga jual produk.
+                    Kasir akan memunculkan pilihan status Botol Kecil & Botol Besar saat produk ini dipilih. Isi harga jual & modal untuk tiap ukuran di bawah.
                   </p>
                 )}
               </div>
 
+              {formData.has_variants ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Jual Botol Kecil (Rp)</label>
+                  <input required type="number" className="input-field tabular" value={formData.harga_jual_kcl ?? ''} onChange={e => setFormData({...formData, harga_jual_kcl: e.target.value})} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Modal Botol Kecil (Rp)</label>
+                  <input type="number" className="input-field tabular" value={formData.harga_modal_kcl ?? ''} onChange={e => setFormData({...formData, harga_modal_kcl: e.target.value})} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Jual Botol Besar (Rp)</label>
+                  <input required type="number" className="input-field tabular" value={formData.harga_jual_bsr ?? ''} onChange={e => setFormData({...formData, harga_jual_bsr: e.target.value})} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Modal Botol Besar (Rp)</label>
+                  <input type="number" className="input-field tabular" value={formData.harga_modal_bsr ?? ''} onChange={e => setFormData({...formData, harga_modal_bsr: e.target.value})} />
+                </div>
+              </div>
+              ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Harga Jual (Rp)</label>
@@ -619,6 +645,7 @@ export default function ProdukPage() {
                   <input type="number" className="input-field tabular" placeholder="10000" value={formData.harga_modal || ''} onChange={e => setFormData({...formData, harga_modal: e.target.value})} />
                 </div>
               </div>
+              )}
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Stok Persediaan</label>

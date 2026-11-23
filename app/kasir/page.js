@@ -28,6 +28,7 @@ import {
   IconTag
 } from '../../components/ui/icons';
 import ReceiptModal from './ReceiptModal';
+import { hargaKemasan } from '../../lib/produk';
 
 export default function KasirPage() {
   const router = useRouter();
@@ -268,7 +269,7 @@ export default function KasirPage() {
   const addToOrder = (product, kemasan = null) => {
     const itemKey = kemasan ? `${product.id}__${kemasan}` : product.id;
     const itemNama = kemasan ? `${product.nama} (${kemasan})` : product.nama;
-    const itemHarga = Number(product.harga_jual) || 0;
+    const itemHarga = hargaKemasan(product, kemasan).harga_jual;
 
     setOrder(prev => {
       const existing = prev.find(item => getOrderItemKey(item) === itemKey);
@@ -2685,7 +2686,7 @@ export default function KasirPage() {
                         </div>
                       </div>
                       <div className="tabular" style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                        Rp {Number(variantModalProduct.harga_jual).toLocaleString('id-ID')}
+                        Rp {hargaKemasan(variantModalProduct, kemasanOpt.key).harga_jual.toLocaleString('id-ID')}
                       </div>
                     </button>
                   );

@@ -3,6 +3,7 @@ import { supabaseAdmin, isSupabaseAvailable } from '../../../lib/supabase';
 import { db } from '../../../lib/db';
 import { getRequestUser } from '../../../lib/session';
 import { isDiskonBerlaku } from '../../../lib/diskon';
+import { deteksiKemasan, hargaKemasan } from '../../../lib/produk';
 
 export async function GET(req) {
   const searchParams = new URL(req.url).searchParams;
@@ -94,6 +95,20 @@ export async function GET(req) {
           };
         });
 
+        // Sertakan kategori_id tiap item (dipakai filter kategori di halaman admin)
+        const produkIds = [...new Set(list.flatMap(t => (t.items || []).map(i => i.produk_id)).filter(Boolean))];
+        if (produkIds.length) {
+          const kategoriMap = new Map();
+          for (let i = 0; i < produkIds.length; i += 100) {
+            const { data: prodRows } = await supabaseAdmin.from('produk').select('id, kategori_id').in('id', produkIds.slice(i, i + 100));
+            (prodRows || []).forEach(p => kategoriMap.set(p.id, p.kategori_id));
+          }
+          list = list.map(t => ({ ...t, items: (t.items || []).map(i => ({ ...i, kategori_id: kategoriMap.get(i.produk_id) || null })) }));
+        }
+        if (kategoriId && kategoriId !== 'ALL') {
+          list = list.filter(t => t.items.some(i => i.kategori_id === kategoriId));
+        }
+
         if (search) {
           const q = search.toLowerCase();
           list = list.filter(t => 
@@ -122,7 +137,8 @@ export async function GET(req) {
       const prod = db.produk.find(p => p.id === dt.produk_id);
       return {
         ...dt,
-        nama_produk: prod ? prod.nama : dt.nama_produk || 'Produk'
+        nama_produk: dt.nama_produk || (prod ? prod.nama : 'Produk'),
+        kategori_id: prod ? prod.kategori_id : null
       };
     });
 
@@ -218,8 +234,10 @@ function hitungTransaksi(rawItems, produkMap, { isAdmin, diskonTipe, diskonNilai
     if (!Number.isFinite(qty) || qty < 1) return { error: `Jumlah "${nama}" tidak valid.` };
     const prod = produkMap.get(item.produk_id);
     if (!prod && !isAdmin) return { error: `Produk "${nama}" tidak ditemukan.` };
-    const harga = (isAdmin || !prod) ? Math.max(0, Number(item.harga_satuan) || 0) : Math.max(0, Number(prod.harga_jual) || 0);
-    const hargaModal = Number(prod?.harga_modal) || Math.round(harga * 0.6);
+    const kemasan = deteksiKemasan(item);
+    const hargaProd = prod ? hargaKemasan(prod, kemasan) : null;
+    const harga = (isAdmin || !prod) ? Math.max(0, Number(item.harga_satuan) || 0) : Math.max(0, hargaProd.harga_jual);
+    const hargaModal = Number(hargaProd?.harga_modal) || Math.round(harga * 0.6);
     subtotal += qty * harga;
     totalModal += qty * hargaModal;
     details.push({
@@ -264,7 +282,7 @@ async function getProdukMap(produkIds, useSupabase) {
   if (useSupabase) {
     const uuidIds = ids.filter(isUuid);
     if (uuidIds.length) {
-      const { data } = await supabaseAdmin.from('produk').select('id, nama, harga_jual, harga_modal, stok').in('id', uuidIds);
+      const { data } = await supabaseAdmin.from('produk').select('id, nama, harga_jual, harga_modal, stok, variants').in('id', uuidIds);
       (data || []).forEach(p => map.set(p.id, p));
     }
   } else {
