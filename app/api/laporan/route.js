@@ -2,6 +2,83 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin, isSupabaseConfigured, isSupabaseAvailable } from '../../../lib/supabase';
 import { db } from '../../../lib/db';
 
+function computeSegmentedSales(transactions, detailItems) {
+  const trxSellerMap = {};
+  (transactions || []).forEach(t => {
+    trxSellerMap[t.id] = t.seller || 'Booth 1 - Gerai Utama (Pusat)';
+  });
+
+  const sekolahMap = {};
+  const olehOlehMap = {};
+  const boothMap = {};
+
+  (detailItems || []).forEach(dt => {
+    const trxId = dt.transaksi_id;
+    const seller = trxSellerMap[trxId] || 'Booth 1 - Gerai Utama (Pusat)';
+    const sUpper = seller.toUpperCase();
+    const prodName = (dt.nama_produk || '').toLowerCase();
+    const qty = Number(dt.qty || 1);
+    const subtotal = Number(dt.subtotal || (qty * (dt.harga_satuan || 0)));
+
+    // 1. Mitra Sekolah (SD): Khusus Kiko & Aneka Puding
+    const isKikoOrPuding = prodName.includes('kiko') || prodName.includes('puding') || prodName.includes('es lilin');
+    const isSekolah = sUpper.includes('SD') || sUpper.includes('SEKOLAH') || sUpper.includes('KANTIN') || sUpper.includes('MADRASAH');
+    if (isKikoOrPuding && isSekolah) {
+      if (!sekolahMap[seller]) {
+        sekolahMap[seller] = {
+          mitra: seller,
+          kategori: 'Mitra Sekolah (SD)',
+          itemHighlight: 'Kiko & Aneka Puding',
+          qty: 0,
+          revenue: 0
+        };
+      }
+      sekolahMap[seller].qty += qty;
+      sekolahMap[seller].revenue += subtotal;
+    }
+
+    // 2. Pusat Oleh-Oleh: Khusus Pie Susu & Pastry
+    const isPieOrPastry = prodName.includes('pie') || prodName.includes('brownies') || prodName.includes('pastry');
+    const isOlehOleh = sUpper.includes('TOKO') || sUpper.includes('OLEH') || sUpper.includes('ROTI') || sUpper.includes('RESELLER') || sUpper.includes('KOPERASI') || sUpper.includes('WARUNG') || sUpper.includes('CAFE') || sUpper.includes('NAFIS');
+    if (isPieOrPastry && isOlehOleh) {
+      if (!olehOlehMap[seller]) {
+        olehOlehMap[seller] = {
+          mitra: seller,
+          kategori: 'Pusat Oleh-Oleh',
+          itemHighlight: 'Pie Susu & Pastry',
+          qty: 0,
+          revenue: 0
+        };
+      }
+      olehOlehMap[seller].qty += qty;
+      olehOlehMap[seller].revenue += subtotal;
+    }
+
+    // 3. Gerai / Booth: Khusus Susu Murni & Minuman
+    const isSusu = prodName.includes('susu') || prodName.includes('stmj') || prodName.includes('smj') || prodName.includes('jahe') || prodName.includes('yoghurt');
+    const isBooth = !isSekolah && !isOlehOleh;
+    if (isSusu && isBooth) {
+      if (!boothMap[seller]) {
+        boothMap[seller] = {
+          mitra: seller,
+          kategori: 'Gerai / Booth',
+          itemHighlight: 'Susu Murni & Olahan',
+          qty: 0,
+          revenue: 0
+        };
+      }
+      boothMap[seller].qty += qty;
+      boothMap[seller].revenue += subtotal;
+    }
+  });
+
+  return {
+    sekolah: Object.values(sekolahMap).sort((a, b) => b.qty - a.qty),
+    olehOleh: Object.values(olehOlehMap).sort((a, b) => b.qty - a.qty),
+    booth: Object.values(boothMap).sort((a, b) => b.qty - a.qty)
+  };
+}
+
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const type = searchParams.get('type');
@@ -16,6 +93,11 @@ export async function GET(req) {
         today.setHours(0, 0, 0, 0);
         const todayIso = today.toISOString();
 
+        // Awal Bulan Ini
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        startOfMonth.setHours(0, 0, 0, 0);
+        const startOfMonthIso = startOfMonth.toISOString();
+
         // Data Mingguan (Senin - Minggu)
         const now = new Date();
         const dayOfWeek = now.getDay();
@@ -29,14 +111,20 @@ export async function GET(req) {
         // Run queries in parallel to eliminate sequential network latency
         const [
           { data: trxToday },
+          { data: trxMonth },
           { data: expToday },
           { data: weekTrx },
           { data: weekExp }
         ] = await Promise.all([
           supabaseAdmin
             .from('transaksi')
-            .select('id, total, status, tanggal')
+            .select('id, total, status, tanggal, seller')
             .gte('tanggal', todayIso)
+            .eq('status', 'selesai'),
+          supabaseAdmin
+            .from('transaksi')
+            .select('id, total, status, tanggal, seller')
+            .gte('tanggal', startOfMonthIso)
             .eq('status', 'selesai'),
           supabaseAdmin
             .from('pengeluaran')
@@ -60,25 +148,50 @@ export async function GET(req) {
         const todayNetProfit = todayRevenue - todayExpense;
         const todayCount = (trxToday || []).length;
 
-        // Top Produk hari ini
-        const trxIds = (trxToday || []).map(t => t.id);
-        let topProducts = [];
+        const monthRevenue = (trxMonth || []).reduce((sum, t) => sum + Number(t.total || 0), 0);
+        const monthCount = (trxMonth || []).length;
 
-        if (trxIds.length > 0) {
+        // Top Produk hari ini & bulan ini
+        const trxIdsToday = new Set((trxToday || []).map(t => t.id));
+        const trxIdsMonth = (trxMonth || []).map(t => t.id);
+        let topProducts = [];
+        let topProductsMonth = [];
+        let segmentedSales = {
+          today: { sekolah: [], olehOleh: [], booth: [] },
+          month: { sekolah: [], olehOleh: [], booth: [] }
+        };
+
+        if (trxIdsMonth.length > 0) {
           const { data: details } = await supabaseAdmin
             .from('detail_transaksi')
-            .select('nama_produk, qty')
-            .in('transaksi_id', trxIds);
+            .select('transaksi_id, nama_produk, qty, harga_satuan, subtotal')
+            .in('transaksi_id', trxIdsMonth);
 
-          const productQtyMap = {};
+          const productQtyMapToday = {};
+          const productQtyMapMonth = {};
+
           (details || []).forEach(dt => {
-            productQtyMap[dt.nama_produk] = (productQtyMap[dt.nama_produk] || 0) + Number(dt.qty || 1);
+            const qty = Number(dt.qty || 1);
+            productQtyMapMonth[dt.nama_produk] = (productQtyMapMonth[dt.nama_produk] || 0) + qty;
+            if (trxIdsToday.has(dt.transaksi_id)) {
+              productQtyMapToday[dt.nama_produk] = (productQtyMapToday[dt.nama_produk] || 0) + qty;
+            }
           });
 
-          topProducts = Object.entries(productQtyMap)
+          topProducts = Object.entries(productQtyMapToday)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 3)
             .map(([nama, qty]) => ({ nama, qty }));
+
+          topProductsMonth = Object.entries(productQtyMapMonth)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([nama, qty]) => ({ nama, qty }));
+
+          // Segmented Sales
+          const detailsToday = (details || []).filter(dt => trxIdsToday.has(dt.transaksi_id));
+          segmentedSales.today = computeSegmentedSales(trxToday, detailsToday);
+          segmentedSales.month = computeSegmentedSales(trxMonth, details);
         }
 
         const weeklyData = [];
@@ -115,6 +228,10 @@ export async function GET(req) {
           todayNetProfit,
           todayCount,
           topProducts,
+          monthRevenue,
+          monthCount,
+          topProductsMonth,
+          segmentedSales,
           weeklyData
         });
       }
@@ -138,6 +255,7 @@ export async function GET(req) {
             total,
             metode_bayar,
             kasir,
+            seller,
             user_id,
             items:detail_transaksi(
               id,
@@ -293,6 +411,7 @@ export async function GET(req) {
           transactionsList: trxs.map(t => ({
             ...t,
             kasir: t.kasir || (t.user_id ? 'Kasir' : 'Kasir Gerai'),
+            seller: t.seller || 'Booth 1 - Gerai Utama (Pusat)'
           })),
           expensesList: exps
         });
@@ -311,9 +430,17 @@ export async function GET(req) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
     const todaysTransactions = db.transaksi.filter(t => {
       const tDate = new Date(t.tanggal);
       return tDate >= today && t.status === 'selesai';
+    });
+
+    const monthsTransactions = db.transaksi.filter(t => {
+      const tDate = new Date(t.tanggal);
+      return tDate >= startOfMonth && t.status === 'selesai';
     });
 
     const todaysExpenses = db.pengeluaran.filter(e => {
@@ -326,19 +453,44 @@ export async function GET(req) {
     const todayNetProfit = todayRevenue - todayExpense;
     const todayCount = todaysTransactions.length;
 
-    const productQtyMap = {};
+    const monthRevenue = monthsTransactions.reduce((sum, t) => sum + t.total, 0);
+    const monthCount = monthsTransactions.length;
+
+    // Top Produk hari ini
+    const productQtyMapToday = {};
     todaysTransactions.forEach(t => {
       const details = db.detailTransaksi.filter(dt => dt.transaksi_id === t.id);
       details.forEach(dt => {
-        productQtyMap[dt.produk_id] = (productQtyMap[dt.produk_id] || 0) + dt.qty;
+        productQtyMapToday[dt.produk_id] = (productQtyMapToday[dt.produk_id] || 0) + dt.qty;
       });
     });
 
-    const topProductsRaw = Object.entries(productQtyMap)
+    const topProductsRaw = Object.entries(productQtyMapToday)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3);
       
     const topProducts = topProductsRaw.map(([produkId, qty]) => {
+      const produk = db.produk.find(p => p.id === produkId);
+      return {
+        nama: produk ? produk.nama : 'Unknown',
+        qty
+      };
+    });
+
+    // Top Produk bulan ini
+    const productQtyMapMonth = {};
+    monthsTransactions.forEach(t => {
+      const details = db.detailTransaksi.filter(dt => dt.transaksi_id === t.id);
+      details.forEach(dt => {
+        productQtyMapMonth[dt.produk_id] = (productQtyMapMonth[dt.produk_id] || 0) + dt.qty;
+      });
+    });
+
+    const topProductsMonthRaw = Object.entries(productQtyMapMonth)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+      
+    const topProductsMonth = topProductsMonthRaw.map(([produkId, qty]) => {
       const produk = db.produk.find(p => p.id === produkId);
       return {
         nama: produk ? produk.nama : 'Unknown',
@@ -381,12 +533,27 @@ export async function GET(req) {
       });
     }
 
+    // Segmented Sales
+    const trxIdsToday = new Set(todaysTransactions.map(t => t.id));
+    const trxIdsMonth = new Set(monthsTransactions.map(t => t.id));
+    const detailsToday = db.detailTransaksi.filter(dt => trxIdsToday.has(dt.transaksi_id));
+    const detailsMonth = db.detailTransaksi.filter(dt => trxIdsMonth.has(dt.transaksi_id));
+
+    const segmentedSales = {
+      today: computeSegmentedSales(todaysTransactions, detailsToday),
+      month: computeSegmentedSales(monthsTransactions, detailsMonth)
+    };
+
     return NextResponse.json({
       todayRevenue,
       todayExpense,
       todayNetProfit,
       todayCount,
       topProducts,
+      monthRevenue,
+      monthCount,
+      topProductsMonth,
+      segmentedSales,
       weeklyData
     });
   }
@@ -426,6 +593,7 @@ export async function GET(req) {
       return {
         ...t,
         kasir: t.kasir || (u ? u.nama : 'Kasir Gerai'),
+        seller: t.seller || 'Booth 1 - Gerai Utama (Pusat)',
         items
       };
     });
