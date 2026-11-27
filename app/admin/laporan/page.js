@@ -50,7 +50,6 @@ function StatCard({ title, value, subtitle, highlightColor, badgeText, badgeColo
 
 export default function LaporanPage() {
   const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [rangeType, setRangeType] = useState('month'); // 'today' | 'week' | 'month' | 'year' | 'custom'
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -77,47 +76,61 @@ export default function LaporanPage() {
   const [pdfDoc, setPdfDoc] = useState(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
-  useEffect(() => {
-    let isMounted = true;
-    if (rangeType === 'custom' && (!customStart || !customEnd)) {
-      return;
-    }
+  const [loadError, setLoadError] = useState('');
 
-    let start, end;
+  // Periode dikirim sebagai tanggal kalender WIB (YYYY-MM-DD); server menghitung
+  // 00:00–23:59 WIB sehingga hari pertama & terakhir ikut terhitung penuh.
+  const periode = useMemo(() => {
     if (rangeType === 'custom') {
-      start = new Date(customStart);
-      end = new Date(customEnd);
-    } else {
-      end = new Date();
-      start = new Date();
-      if (rangeType === 'today') {
-        // already today
-      } else if (rangeType === 'week') {
-        start.setDate(end.getDate() - 7);
-      } else if (rangeType === 'month') {
-        start.setDate(1);
-      } else if (rangeType === 'year') {
-        start = new Date(end.getFullYear(), 0, 1);
-      }
+      return customStart && customEnd ? `${customStart}|${customEnd}` : null;
     }
+    const tglWib = (d) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+    const today = tglWib(new Date());
+    let start = today;
+    if (rangeType === 'week') {
+      // 7 hari terakhir termasuk hari ini
+      start = tglWib(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
+    } else if (rangeType === 'month') {
+      start = `${today.slice(0, 7)}-01`;
+    } else if (rangeType === 'year') {
+      start = `${today.slice(0, 4)}-01-01`;
+    }
+    return `${start}|${today}`;
+  }, [rangeType, customStart, customEnd]);
 
-    let url = `/api/laporan?type=laporan&start=${start.toISOString()}&end=${end.toISOString()}`;
+  // Periode yang datanya sedang tampil; berbeda dari `periode` berarti masih memuat
+  const [loadedPeriode, setLoadedPeriode] = useState(null);
+  const isLoading = periode !== null && loadedPeriode !== periode;
 
-    fetch(url)
-      .then(r => r.json())
+  useEffect(() => {
+    if (!periode) return;
+    let isMounted = true;
+    const [start, end] = periode.split('|');
+
+    fetch(`/api/laporan?type=laporan&start=${start}&end=${end}`)
+      .then(async r => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || data.error) throw new Error(data.error || 'Gagal memuat laporan');
+        return data;
+      })
       .then(data => {
         if (isMounted) {
           setStats(data);
-          setLoading(false);
+          setLoadError('');
+          setLoadedPeriode(periode);
           setCurrentPage(0);
         }
       })
-      .catch(() => {
-        if (isMounted) setLoading(false);
+      .catch((err) => {
+        if (isMounted) {
+          setStats(null);
+          setLoadError(err.message || 'Gagal memuat laporan');
+          setLoadedPeriode(periode);
+        }
       });
 
     return () => { isMounted = false; };
-  }, [rangeType, customStart, customEnd]);
+  }, [periode]);
 
   // Format label periode pembukuan untuk laporan resmi
   const formattedPeriodLabel = useMemo(() => {
@@ -218,29 +231,23 @@ export default function LaporanPage() {
 
   const handleDownloadPDF = () => {
     if (!pdfDoc) return;
-    const { canvas, filename } = pdfDoc;
+    const { canvas, imgData, filename } = pdfDoc;
 
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
     const margin = 8;
     const contentWidth = pdfWidth - (margin * 2);
-    const contentHeight = pdfHeight - (margin * 2);
-    const imgHeight = (canvas.height * contentWidth) / canvas.width;
+    const usableHeight = pdfHeight - (margin * 2);
+    const imgHeight = canvas ? ((canvas.height * contentWidth) / canvas.width) : (pdfDoc.imgHeight || 200);
 
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    const imgData = canvas.toDataURL('image/png');
-    pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, imgHeight);
-    heightLeft -= contentHeight;
-
-    // Handle multi-page documents smoothly
-    while (heightLeft > 0) {
-      position -= contentHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, 'PNG', margin, position + margin, contentWidth, imgHeight);
-      heightLeft -= contentHeight;
+    for (let offset = 0, page = 0; offset < imgHeight; offset += usableHeight, page++) {
+      if (page > 0) pdf.addPage();
+      pdf.addImage(imgData, 'PNG', margin, margin - offset, contentWidth, imgHeight);
+      // Tutup area margin agar potongan gambar halaman lain tidak terlihat
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(0, 0, pdfWidth, margin, 'F');
+      pdf.rect(0, margin + usableHeight, pdfWidth, margin, 'F');
     }
 
     pdf.save(filename || `Laporan_Keuangan_Andini_${activeTab}_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -715,8 +722,10 @@ export default function LaporanPage() {
         </button>
       </div>
 
-      {loading || !stats ? (
-        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Memuat laporan keuangan...</div>
+      {isLoading || !stats ? (
+        <div style={{ padding: '3rem', textAlign: 'center', color: !isLoading && loadError ? 'var(--status-danger)' : 'var(--text-secondary)', fontSize: '0.875rem' }}>
+          {isLoading ? 'Memuat laporan keuangan...' : (loadError || 'Pilih tanggal awal dan akhir periode.')}
+        </div>
       ) : (
         <div id="laporan-content" style={{ padding: '0.5rem 0', backgroundColor: 'transparent' }}>
           
@@ -1452,7 +1461,7 @@ export default function LaporanPage() {
                       <tbody>
                         {stats.transactionsList && stats.transactionsList.slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE).map((item, i) => {
                           const dt = new Date(item.tanggal);
-                          const formattedDate = `${dt.toLocaleDateString('id-ID')} ${dt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`;
+                          const formattedDate = `${dt.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta' })} ${dt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}`;
                           
                           let produkSummary = '-';
                           if (item.items && item.items.length > 0) {
@@ -1499,7 +1508,7 @@ export default function LaporanPage() {
                                   {item.metode_bayar || 'TUNAI'}
                                 </span>
                               </td>
-                              <td className="tabular" style={{ padding: '0.75rem 0.85rem', textAlign: 'right', fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>Rp {item.total.toLocaleString('id-ID')}</td>
+                              <td className="tabular" style={{ padding: '0.75rem 0.85rem', textAlign: 'right', fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>Rp {Number(item.total || 0).toLocaleString('id-ID')}</td>
                             </tr>
                           );
                         })}
@@ -1982,7 +1991,7 @@ export default function LaporanPage() {
                     highlightColor="var(--status-success)"
                   />
                   <StatCard 
-                    title="Produk Terlaris" 
+                    title="Produk Laba Terbesar"
                     value={stats.productProfitability?.[0]?.nama || '-'} 
                     subtitle={`Laba: Rp ${(stats.productProfitability?.[0]?.grossProfit || 0).toLocaleString('id-ID')}`}
                     highlightColor="var(--terracotta)"

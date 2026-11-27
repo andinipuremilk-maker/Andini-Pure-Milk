@@ -20,6 +20,10 @@ CREATE TABLE IF NOT EXISTS public.users (
 );
 
 -- 3. TABEL: kategori_produk
+-- Migrasi: penguncian login setelah 5 kali salah password
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS gagal_login INT DEFAULT 0;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS terkunci_sampai TIMESTAMPTZ;
+
 CREATE TABLE IF NOT EXISTS public.kategori_produk (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nama TEXT UNIQUE NOT NULL,
@@ -67,14 +71,22 @@ CREATE TABLE IF NOT EXISTS public.diskon (
     nilai NUMERIC NOT NULL DEFAULT 0,
     keterangan TEXT DEFAULT '',
     is_active BOOLEAN DEFAULT TRUE,
+    tanggal_mulai DATE,
+    tanggal_selesai DATE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migrasi: masa berlaku diskon (kosong = tanpa batas, tanggal selesai inklusif)
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS tanggal_mulai DATE;
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS tanggal_selesai DATE;
 
 -- 7. TABEL: transaksi (Penjualan Kasir - Ramping & Tanpa Kolom Redundan)
 CREATE TABLE IF NOT EXISTS public.transaksi (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     no_transaksi TEXT UNIQUE NOT NULL,
     user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+    kasir TEXT DEFAULT '',
+    booth TEXT DEFAULT '',
     seller TEXT NOT NULL DEFAULT 'Umum / Retail',
     tanggal TIMESTAMPTZ DEFAULT NOW(),
     subtotal BIGINT NOT NULL DEFAULT 0,
@@ -93,6 +105,10 @@ CREATE TABLE IF NOT EXISTS public.transaksi (
 );
 
 -- 7. TABEL: detail_transaksi (Rincian Produk Tiap Nota Transaksi)
+-- Migrasi untuk database yang sudah ada: simpan nama kasir & booth per transaksi
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS kasir TEXT DEFAULT '';
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS booth TEXT DEFAULT '';
+
 CREATE TABLE IF NOT EXISTS public.detail_transaksi (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     transaksi_id UUID NOT NULL REFERENCES public.transaksi(id) ON DELETE CASCADE,
@@ -103,6 +119,9 @@ CREATE TABLE IF NOT EXISTS public.detail_transaksi (
     subtotal BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migrasi: modal per item saat transaksi terjadi (laba historis tidak berubah saat harga modal produk diubah)
+ALTER TABLE public.detail_transaksi ADD COLUMN IF NOT EXISTS harga_modal NUMERIC;
 
 -- 8. TABEL: pengeluaran (Beban & Biaya Operasional Toko)
 CREATE TABLE IF NOT EXISTS public.pengeluaran (
@@ -120,6 +139,82 @@ CREATE TABLE IF NOT EXISTS public.pengeluaran (
 -- ==============================================================================
 -- INDEXING UNTUK KECEPATAN QUERY
 -- ==============================================================================
+-- MIGRASI KOLOM: tabel yang dibuat dengan versi skema lama tidak otomatis mendapat
+-- kolom baru dari CREATE TABLE IF NOT EXISTS. Baris di bawah menambahkan kolom yang
+-- belum ada tanpa mengubah data. Aman dijalankan berulang kali.
+-- ==============================================================================
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS nama TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS username TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS password TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS role TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS shift TEXT DEFAULT 'Shift 1 (08:00 - 16:00)';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS tanggal_masuk DATE DEFAULT CURRENT_DATE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.kategori_produk ADD COLUMN IF NOT EXISTS nama TEXT;
+ALTER TABLE public.kategori_produk ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS kategori_id UUID;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS nama TEXT;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS sku TEXT;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS harga_jual BIGINT DEFAULT 0;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS harga_modal BIGINT DEFAULT 0;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS stok INT DEFAULT 100;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS variants JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.produk ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.booths ADD COLUMN IF NOT EXISTS nama TEXT;
+ALTER TABLE public.booths ADD COLUMN IF NOT EXISTS lokasi TEXT DEFAULT '';
+ALTER TABLE public.booths ADD COLUMN IF NOT EXISTS penanggung_jawab TEXT DEFAULT '';
+ALTER TABLE public.booths ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.booths ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.sellers ADD COLUMN IF NOT EXISTS nama TEXT;
+ALTER TABLE public.sellers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.sellers ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS nama TEXT;
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS tipe TEXT;
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS nilai NUMERIC DEFAULT 0;
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS keterangan TEXT DEFAULT '';
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS tanggal_mulai DATE;
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS tanggal_selesai DATE;
+ALTER TABLE public.diskon ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS no_transaksi TEXT;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS user_id UUID;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS kasir TEXT DEFAULT '';
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS booth TEXT DEFAULT '';
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS seller TEXT DEFAULT 'Umum / Retail';
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS tanggal TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS subtotal BIGINT DEFAULT 0;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS diskon BIGINT DEFAULT 0;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS diskon_tipe TEXT DEFAULT 'nominal';
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS diskon_nilai NUMERIC DEFAULT 0;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS diskon_id UUID;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS diskon_nama TEXT DEFAULT '';
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS total BIGINT DEFAULT 0;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS bayar BIGINT DEFAULT 0;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS kembalian BIGINT DEFAULT 0;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS metode_bayar TEXT;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS keterangan TEXT DEFAULT '';
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'selesai';
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.detail_transaksi ADD COLUMN IF NOT EXISTS transaksi_id UUID;
+ALTER TABLE public.detail_transaksi ADD COLUMN IF NOT EXISTS produk_id UUID;
+ALTER TABLE public.detail_transaksi ADD COLUMN IF NOT EXISTS nama_produk TEXT;
+ALTER TABLE public.detail_transaksi ADD COLUMN IF NOT EXISTS qty INT DEFAULT 1;
+ALTER TABLE public.detail_transaksi ADD COLUMN IF NOT EXISTS harga_satuan BIGINT DEFAULT 0;
+ALTER TABLE public.detail_transaksi ADD COLUMN IF NOT EXISTS subtotal BIGINT DEFAULT 0;
+ALTER TABLE public.detail_transaksi ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.pengeluaran ADD COLUMN IF NOT EXISTS no_transaksi TEXT;
+ALTER TABLE public.pengeluaran ADD COLUMN IF NOT EXISTS tanggal TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.pengeluaran ADD COLUMN IF NOT EXISTS kategori TEXT;
+ALTER TABLE public.pengeluaran ADD COLUMN IF NOT EXISTS deskripsi TEXT;
+ALTER TABLE public.pengeluaran ADD COLUMN IF NOT EXISTS nominal BIGINT DEFAULT 0;
+ALTER TABLE public.pengeluaran ADD COLUMN IF NOT EXISTS metode_bayar TEXT DEFAULT 'tunai';
+ALTER TABLE public.pengeluaran ADD COLUMN IF NOT EXISTS pj TEXT DEFAULT 'Admin';
+ALTER TABLE public.pengeluaran ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
+-- ==============================================================================
 CREATE INDEX IF NOT EXISTS idx_transaksi_tanggal ON public.transaksi (tanggal DESC);
 CREATE INDEX IF NOT EXISTS idx_transaksi_seller ON public.transaksi (seller);
 CREATE INDEX IF NOT EXISTS idx_detail_transaksi_trx ON public.detail_transaksi (transaksi_id);
@@ -128,45 +223,30 @@ CREATE INDEX IF NOT EXISTS idx_produk_kategori ON public.produk (kategori_id);
 CREATE INDEX IF NOT EXISTS idx_booths_nama ON public.booths (nama);
 
 -- ==============================================================================
--- ROW LEVEL SECURITY (RLS)
--- Diaktifkan dengan policy mengizinkan akses melalui Next.js backend API
+-- KEAMANAN: ROW LEVEL SECURITY (RLS)
+-- Semua tabel dikunci. Aplikasi mengakses database HANYA dari server memakai
+-- SUPABASE_SERVICE_ROLE_KEY, yang otomatis melewati RLS. Tanpa policy, kunci
+-- anon/publik tidak bisa membaca atau mengubah data apa pun.
 -- ==============================================================================
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.kategori_produk ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.produk ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.booths ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sellers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.diskon ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transaksi ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.detail_transaksi ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pengeluaran ENABLE ROW LEVEL SECURITY;
 
--- Policy sederhana untuk akses anonim/service key (backend API)
-DO $$
-BEGIN
-    DROP POLICY IF EXISTS "Allow all for authenticated/anon on users" ON public.users;
-    CREATE POLICY "Allow all for authenticated/anon on users" ON public.users FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Allow all on kategori_produk" ON public.kategori_produk;
-    CREATE POLICY "Allow all on kategori_produk" ON public.kategori_produk FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Allow all on produk" ON public.produk;
-    CREATE POLICY "Allow all on produk" ON public.produk FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Allow all on booths" ON public.booths;
-    CREATE POLICY "Allow all on booths" ON public.booths FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Allow all on sellers" ON public.sellers;
-    CREATE POLICY "Allow all on sellers" ON public.sellers FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Allow all on transaksi" ON public.transaksi;
-    CREATE POLICY "Allow all on transaksi" ON public.transaksi FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Allow all on detail_transaksi" ON public.detail_transaksi;
-    CREATE POLICY "Allow all on detail_transaksi" ON public.detail_transaksi FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Allow all on pengeluaran" ON public.pengeluaran;
-    CREATE POLICY "Allow all on pengeluaran" ON public.pengeluaran FOR ALL USING (true) WITH CHECK (true);
-END $$;
+-- Hapus policy lama yang membuka akses penuh untuk anon (versi sebelumnya)
+DROP POLICY IF EXISTS "Allow all for authenticated/anon on users" ON public.users;
+DROP POLICY IF EXISTS "Allow all on kategori_produk" ON public.kategori_produk;
+DROP POLICY IF EXISTS "Allow all on produk" ON public.produk;
+DROP POLICY IF EXISTS "Allow all on booths" ON public.booths;
+DROP POLICY IF EXISTS "Allow all on sellers" ON public.sellers;
+DROP POLICY IF EXISTS "Allow all on transaksi" ON public.transaksi;
+DROP POLICY IF EXISTS "Allow all on detail_transaksi" ON public.detail_transaksi;
+DROP POLICY IF EXISTS "Allow all on pengeluaran" ON public.pengeluaran;
 
 -- ==============================================================================
 -- INITIAL SEED DATA

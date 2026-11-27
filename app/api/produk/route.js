@@ -85,6 +85,7 @@ export async function PUT(req) {
     try {
       const payload = { ...data };
       delete payload.id; // jangan update id
+      delete payload.has_variants; // bukan kolom database (turunan dari variants)
 
       const { data: updated, error } = await supabaseAdmin
         .from('produk')

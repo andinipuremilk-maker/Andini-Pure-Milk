@@ -2,11 +2,23 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin, isSupabaseConfigured } from '../../../lib/supabase';
 import { db } from '../../../lib/db';
 
-export async function GET(req) {
-  return await handleSeed(req);
+// Seed MENGHAPUS seluruh transaksi lalu mengisi data contoh.
+// Hanya boleh lewat POST oleh admin (dicek di proxy.js), dan di produksi
+// wajib diaktifkan manual dengan ALLOW_SEED=true.
+export async function GET() {
+  return NextResponse.json(
+    { error: 'Gunakan metode POST untuk menjalankan seed.' },
+    { status: 405 }
+  );
 }
 
 export async function POST(req) {
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_SEED !== 'true') {
+    return NextResponse.json(
+      { error: 'Seed data dinonaktifkan di produksi untuk mencegah penghapusan data.' },
+      { status: 403 }
+    );
+  }
   return await handleSeed(req);
 }
 

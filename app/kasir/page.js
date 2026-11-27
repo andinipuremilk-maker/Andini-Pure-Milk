@@ -28,6 +28,7 @@ import {
   IconTag
 } from '../../components/ui/icons';
 import ReceiptModal from './ReceiptModal';
+import { hargaKemasan } from '../../lib/produk';
 
 export default function KasirPage() {
   const router = useRouter();
@@ -249,6 +250,8 @@ export default function KasirPage() {
   }, [router]);
 
   const handleLogout = () => {
+    // Hapus cookie sesi di server
+    fetch('/api/auth', { method: 'DELETE' }).catch(() => {});
     localStorage.removeItem('user');
     router.push('/login?role=kasir');
   };
@@ -266,7 +269,7 @@ export default function KasirPage() {
   const addToOrder = (product, kemasan = null) => {
     const itemKey = kemasan ? `${product.id}__${kemasan}` : product.id;
     const itemNama = kemasan ? `${product.nama} (${kemasan})` : product.nama;
-    const itemHarga = Number(product.harga_jual) || 0;
+    const itemHarga = hargaKemasan(product, kemasan).harga_jual;
 
     setOrder(prev => {
       const existing = prev.find(item => getOrderItemKey(item) === itemKey);
@@ -401,11 +404,16 @@ export default function KasirPage() {
 
   // Pembayaran Langsung
   const handlePayment = async () => {
+    // Booth wajib dipilih agar laporan penjualan per gerai akurat
+    if (!currentUser?.booth) {
+      alert('Pilih Booth Penjualan terlebih dahulu (menu di bagian atas layar).');
+      return;
+    }
     setProcessing(true);
     const user = currentUser || JSON.parse(localStorage.getItem('user')) || { id: 'u3', nama: 'Kasir Outlet Andini' };
     const effectiveSeller = getEffectiveSeller();
     const kasirNama = user.nama || user.username || 'Kasir Outlet Andini';
-    const boothName = user.booth || 'Gerai Utama';
+    const boothName = user.booth || '';
 
     try {
       const res = await fetch('/api/transaksi', {
@@ -460,7 +468,13 @@ export default function KasirPage() {
         setShowReceipt(true);
         loadPendingCount();
       } else {
-        alert('Gagal memproses transaksi.');
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          alert('Sesi login berakhir. Silakan login kembali.');
+          router.push('/login?role=kasir');
+          return;
+        }
+        alert(errData.error || 'Gagal memproses transaksi.');
       }
     } catch (e) {
       alert('Terjadi kesalahan jaringan.');
@@ -471,12 +485,17 @@ export default function KasirPage() {
 
   // Simpan Transaksi sebagai Pending (Tahan Pesanan)
   const handleSavePending = async () => {
+    // Booth wajib dipilih agar laporan penjualan per gerai akurat
+    if (!currentUser?.booth) {
+      alert('Pilih Booth Penjualan terlebih dahulu (menu di bagian atas layar).');
+      return;
+    }
     if (order.length === 0) return;
     setSavingPending(true);
     const user = currentUser || JSON.parse(localStorage.getItem('user')) || { id: 'u3', nama: 'Kasir Outlet Andini' };
     const effectiveSeller = getEffectiveSeller();
     const kasirNama = user.nama || user.username || 'Kasir Outlet Andini';
-    const boothName = user.booth || 'Gerai Utama';
+    const boothName = user.booth || '';
 
     try {
       const res = await fetch('/api/transaksi', {
@@ -516,7 +535,8 @@ export default function KasirPage() {
         await loadPendingCount();
         alert('Pesanan berhasil ditahan dengan status PENDING. Anda dapat menyelesaikannya dari menu Riwayat Transaksi.');
       } else {
-        alert('Gagal menyimpan transaksi pending.');
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || 'Gagal menyimpan transaksi pending.');
       }
     } catch (err) {
       alert('Terjadi kesalahan jaringan saat menyimpan pending.');
@@ -702,7 +722,8 @@ export default function KasirPage() {
         loadPendingCount();
         loadRiwayat();
       } else {
-        alert('Gagal menyelesaikan transaksi.');
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || 'Gagal menyelesaikan transaksi.');
       }
     } catch (e) {
       alert('Terjadi kesalahan jaringan saat menyelesaikan transaksi.');
@@ -768,10 +789,10 @@ export default function KasirPage() {
   );
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-bg-light)', position: 'relative' }}>
+    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-bg-light)', position: 'relative' }}>
 
       {/* Header POS Kasir */}
-      <header style={{
+      <header className="kasir-header" style={{
         padding: '0.65rem 1.25rem',
         borderBottom: '1px solid var(--border-subtle)',
         display: 'flex',
@@ -781,7 +802,7 @@ export default function KasirPage() {
         gap: '0.75rem',
         flexWrap: 'wrap'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
+        <div className="kasir-header-brand" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
           <div style={{
             width: '32px',
             height: '32px',
@@ -814,7 +835,7 @@ export default function KasirPage() {
         </div>
 
         {/* Action Toolbar Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div className="kasir-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
 
           {/* Tombol Pop-up Riwayat Transaksi */}
           <button
@@ -832,7 +853,7 @@ export default function KasirPage() {
             }}
           >
             <IconReceipt size={14} />
-            <span>Riwayat Transaksi</span>
+            <span className="kasir-btn-label">Riwayat Transaksi</span>
             {pendingCount > 0 && (
               <span style={{
                 backgroundColor: 'var(--status-warning)',
@@ -866,7 +887,7 @@ export default function KasirPage() {
               }}
             >
               <IconShield size={14} />
-              <span>Panel Admin</span>
+              <span className="kasir-btn-label">Panel Admin</span>
             </button>
           )}
 
@@ -886,12 +907,12 @@ export default function KasirPage() {
               title="Kelola Diskon & Promo Penjualan (Khusus Admin)"
             >
               <IconTag size={14} />
-              <span>Kelola Diskon</span>
+              <span className="kasir-btn-label">Kelola Diskon</span>
             </button>
           )}
 
           {/* Dropdown Booth Penjualan Kasir di Header */}
-          <div style={{
+          <div className="kasir-booth-select" style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: '0.35rem',
@@ -941,7 +962,7 @@ export default function KasirPage() {
             </select>
           </div>
 
-          <span className="badge-neutral" style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }} suppressHydrationWarning>
+          <span className="badge-neutral kasir-user-badge" style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }} suppressHydrationWarning>
             <IconUser size={13} />
             <span>{mounted && currentUser?.nama ? currentUser.nama : 'Kasir'}</span>
           </span>
@@ -953,7 +974,7 @@ export default function KasirPage() {
             title="Keluar / Ganti Akun"
           >
             <IconLogOut size={13} />
-            <span>Keluar</span>
+            <span className="kasir-btn-label">Keluar</span>
           </button>
         </div>
       </header>
@@ -1077,8 +1098,8 @@ export default function KasirPage() {
           </div>
 
           {/* Product Grid */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', paddingBottom: '5rem' }}>
-            <div style={{
+          <div className="kasir-product-scroll" style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', paddingBottom: '5rem' }}>
+            <div className="kasir-product-grid" style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
               gap: '0.85rem'
@@ -1115,7 +1136,7 @@ export default function KasirPage() {
                     }}
                   >
                     {/* Foto Produk */}
-                    <div style={{
+                    <div className="kasir-product-photo" style={{
                       position: 'relative',
                       width: '100%',
                       height: '115px',
@@ -1200,7 +1221,7 @@ export default function KasirPage() {
                             {getCategoryName(p.kategori_id)}
                           </span>
                           {hasPackaging && (
-                            <span className="badge-neutral" style={{ fontSize: '0.625rem', padding: '0.08rem 0.35rem', borderRadius: 'var(--radius-sm)', flexShrink: 0 }}>
+                            <span className="badge-neutral kasir-variant-badge" style={{ fontSize: '0.625rem', padding: '0.08rem 0.35rem', borderRadius: 'var(--radius-sm)', flexShrink: 0 }}>
                               Botol Kecil / Besar
                             </span>
                           )}
@@ -1234,6 +1255,42 @@ export default function KasirPage() {
               })}
             </div>
           </div>
+
+          {/* Bar Keranjang Melayang (khusus HP, tampil saat ada item) */}
+          {totalQty > 0 && (
+            <button
+              type="button"
+              className="kasir-floating-cart safe-bottom"
+              onClick={() => setMobileTab('cart')}
+              style={{
+                display: 'none',
+                position: 'absolute',
+                left: '0.75rem',
+                right: '0.75rem',
+                bottom: '0.75rem',
+                padding: '0.8rem 1rem',
+                borderRadius: 'var(--radius-lg)',
+                backgroundColor: 'var(--accent-primary)',
+                color: 'var(--text-inverse)',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.75rem',
+                boxShadow: 'var(--shadow-lg)',
+                zIndex: 20,
+                fontWeight: 600,
+                fontSize: '0.875rem'
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <IconCart size={16} />
+                <span>{totalQty} item</span>
+              </span>
+              <span className="tabular" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                Rp {total.toLocaleString('id-ID')}
+                <IconArrowRight size={15} />
+              </span>
+            </button>
+          )}
         </section>
 
         {/* Right Side: Order Summary Cart */}
@@ -1496,6 +1553,56 @@ export default function KasirPage() {
           }
           .kasir-back-to-menu-btn {
             display: inline-block !important;
+          }
+          .kasir-floating-cart {
+            display: flex !important;
+          }
+        }
+
+        /* Layout kasir khusus layar HP */
+        @media (max-width: 640px) {
+          .kasir-header {
+            padding: 0.5rem 0.75rem !important;
+            gap: 0.5rem !important;
+          }
+          .kasir-header-brand {
+            flex: 1;
+          }
+          .kasir-header-actions {
+            display: contents !important;
+          }
+          .kasir-btn-label,
+          .kasir-user-badge {
+            display: none !important;
+          }
+          .kasir-header-actions > button {
+            min-height: 38px;
+            min-width: 38px;
+            padding: 0.45rem 0.6rem !important;
+          }
+          .kasir-booth-select {
+            order: 10;
+            flex: 1 1 100%;
+            padding: 0.2rem 0.55rem !important;
+          }
+          .kasir-booth-select select {
+            flex: 1;
+            max-width: none !important;
+            width: 100%;
+          }
+          .kasir-product-scroll {
+            padding: 0.75rem !important;
+            padding-bottom: 6rem !important;
+          }
+          .kasir-product-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 0.6rem !important;
+          }
+          .kasir-product-photo {
+            height: 96px !important;
+          }
+          .kasir-variant-badge {
+            display: none !important;
           }
         }
       `}</style>
@@ -2236,6 +2343,8 @@ export default function KasirPage() {
                               className="input-field tabular"
                               value={it.harga_satuan}
                               onChange={e => updateEditItemPrice(idx, e.target.value)}
+                              disabled={currentUser?.role !== 'admin'}
+                              title={currentUser?.role !== 'admin' ? 'Harga mengikuti katalog produk' : undefined}
                               style={{ width: '90px', padding: '0.3rem 0.45rem', fontSize: '0.8125rem', textAlign: 'right', fontWeight: 600 }}
                               min="0"
                             />
@@ -2577,7 +2686,7 @@ export default function KasirPage() {
                         </div>
                       </div>
                       <div className="tabular" style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                        Rp {Number(variantModalProduct.harga_jual).toLocaleString('id-ID')}
+                        Rp {hargaKemasan(variantModalProduct, kemasanOpt.key).harga_jual.toLocaleString('id-ID')}
                       </div>
                     </button>
                   );

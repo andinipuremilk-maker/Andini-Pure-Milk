@@ -15,6 +15,16 @@ import {
   IconArrowRight,
   IconMilk
 } from '../../../components/ui/icons';
+import { statusDiskon } from '../../../lib/diskon';
+
+const STATUS_LABEL = {
+  aktif: 'Aktif',
+  nonaktif: 'Non-Aktif',
+  belum_mulai: 'Belum Mulai',
+  kedaluwarsa: 'Kedaluwarsa'
+};
+
+const fmtTanggal = (t) => new Date(`${t}T00:00:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
 
 function StatCard({ title, value, subtitle }) {
   return (
@@ -57,6 +67,8 @@ export default function DiskonManagementPage() {
     tipe: 'persen',
     nilai: '',
     keterangan: '',
+    tanggal_mulai: '',
+    tanggal_selesai: '',
     is_active: true
   });
   const [processing, setProcessing] = useState(false);
@@ -118,7 +130,7 @@ export default function DiskonManagementPage() {
 
   // KPI Calculations
   const totalCount = diskonList.length;
-  const activeCount = diskonList.filter(d => d.is_active !== false).length;
+  const activeCount = diskonList.filter(d => statusDiskon(d) === 'aktif').length;
   const persenCount = diskonList.filter(d => d.tipe === 'persen').length;
   const nominalCount = diskonList.filter(d => d.tipe === 'nominal').length;
 
@@ -130,8 +142,8 @@ export default function DiskonManagementPage() {
 
     const matchStatus =
       selectedStatus === 'ALL' ||
-      (selectedStatus === 'ACTIVE' && d.is_active !== false) ||
-      (selectedStatus === 'INACTIVE' && d.is_active === false);
+      (selectedStatus === 'ACTIVE' && statusDiskon(d) === 'aktif') ||
+      (selectedStatus === 'INACTIVE' && statusDiskon(d) !== 'aktif');
 
     const matchTipe =
       selectedTipe === 'ALL' ||
@@ -155,6 +167,8 @@ export default function DiskonManagementPage() {
       tipe: 'persen',
       nilai: '',
       keterangan: '',
+      tanggal_mulai: '',
+      tanggal_selesai: '',
       is_active: true
     });
     setFormError('');
@@ -169,6 +183,8 @@ export default function DiskonManagementPage() {
       tipe: item.tipe || 'persen',
       nilai: item.nilai !== undefined ? String(item.nilai) : '',
       keterangan: item.keterangan || '',
+      tanggal_mulai: item.tanggal_mulai || '',
+      tanggal_selesai: item.tanggal_selesai || '',
       is_active: item.is_active !== false
     });
     setFormError('');
@@ -232,6 +248,8 @@ export default function DiskonManagementPage() {
             tipe: formData.tipe,
             nilai,
             keterangan: formData.keterangan.trim(),
+            tanggal_mulai: formData.tanggal_mulai || null,
+            tanggal_selesai: formData.tanggal_selesai || null,
             is_active: formData.is_active
           })
         });
@@ -253,6 +271,8 @@ export default function DiskonManagementPage() {
             tipe: formData.tipe,
             nilai,
             keterangan: formData.keterangan.trim(),
+            tanggal_mulai: formData.tanggal_mulai || null,
+            tanggal_selesai: formData.tanggal_selesai || null,
             is_active: formData.is_active
           })
         });
@@ -488,6 +508,7 @@ export default function DiskonManagementPage() {
                   <th style={{ padding: '0.75rem 1rem', fontWeight: 700 }}>TIPE DISKON</th>
                   <th style={{ padding: '0.75rem 1rem', fontWeight: 700 }}>NILAI POTONGAN</th>
                   <th style={{ padding: '0.75rem 1rem', fontWeight: 700 }}>KETERANGAN</th>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: 700 }}>MASA BERLAKU</th>
                   <th style={{ padding: '0.75rem 1rem', fontWeight: 700, textAlign: 'center' }}>STATUS DI KASIR</th>
                   <th style={{ padding: '0.75rem 1rem', fontWeight: 700, textAlign: 'right' }}>AKSI</th>
                 </tr>
@@ -495,13 +516,15 @@ export default function DiskonManagementPage() {
               <tbody>
                 {currentDiskon.map((item) => {
                   const isActive = item.is_active !== false;
+                  const status = statusDiskon(item);
+                  const isBerlaku = status === 'aktif';
                   return (
                     <tr
                       key={item.id}
                       style={{
                         borderBottom: '1px solid var(--border-subtle)',
-                        backgroundColor: isActive ? 'transparent' : 'var(--surface-sunken)',
-                        opacity: isActive ? 1 : 0.75,
+                        backgroundColor: isBerlaku ? 'transparent' : 'var(--surface-sunken)',
+                        opacity: isBerlaku ? 1 : 0.75,
                         transition: 'background-color 0.15s ease'
                       }}
                     >
@@ -575,6 +598,13 @@ export default function DiskonManagementPage() {
                         {item.keterangan ? item.keterangan : <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic' }}>Tanpa catatan khusus</span>}
                       </td>
 
+                      {/* Masa Berlaku */}
+                      <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontSize: '0.78rem' }}>
+                        {item.tanggal_mulai || item.tanggal_selesai
+                          ? `${item.tanggal_mulai ? fmtTanggal(item.tanggal_mulai) : 'Sejak dibuat'} – ${item.tanggal_selesai ? fmtTanggal(item.tanggal_selesai) : 'Tanpa batas'}`
+                          : <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic' }}>Tanpa batas</span>}
+                      </td>
+
                       {/* Status Toggle */}
                       <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
                         <button
@@ -590,9 +620,9 @@ export default function DiskonManagementPage() {
                             fontWeight: 700,
                             cursor: 'pointer',
                             border: '1px solid',
-                            backgroundColor: isActive ? 'var(--status-success-bg)' : 'var(--status-danger-bg)',
-                            borderColor: isActive ? 'var(--status-success-border)' : 'var(--status-danger-border)',
-                            color: isActive ? 'var(--status-success)' : 'var(--status-danger)'
+                            backgroundColor: isBerlaku ? 'var(--status-success-bg)' : 'var(--status-danger-bg)',
+                            borderColor: isBerlaku ? 'var(--status-success-border)' : 'var(--status-danger-border)',
+                            color: isBerlaku ? 'var(--status-success)' : 'var(--status-danger)'
                           }}
                           title={`Klik untuk ${isActive ? 'nonaktifkan' : 'aktifkan'}`}
                         >
@@ -600,9 +630,9 @@ export default function DiskonManagementPage() {
                             width: '6px',
                             height: '6px',
                             borderRadius: '50%',
-                            backgroundColor: isActive ? 'var(--status-success)' : 'var(--status-danger)'
+                            backgroundColor: isBerlaku ? 'var(--status-success)' : 'var(--status-danger)'
                           }} />
-                          <span>{isActive ? 'Aktif' : 'Non-Aktif'}</span>
+                          <span>{STATUS_LABEL[status]}</span>
                         </button>
                       </td>
 
@@ -815,6 +845,37 @@ export default function DiskonManagementPage() {
                     {formData.tipe === 'persen' ? '%' : 'IDR'}
                   </span>
                 </div>
+              </div>
+
+              {/* Masa Berlaku */}
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-secondary)' }}>
+                  Masa Berlaku (Opsional)
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  <div>
+                    <span style={{ display: 'block', fontSize: '0.6875rem', color: 'var(--text-tertiary)', marginBottom: '0.2rem' }}>Mulai</span>
+                    <input
+                      type="date"
+                      className="input-field"
+                      value={formData.tanggal_mulai}
+                      onChange={e => setFormData({ ...formData, tanggal_mulai: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <span style={{ display: 'block', fontSize: '0.6875rem', color: 'var(--text-tertiary)', marginBottom: '0.2rem' }}>Berakhir (inklusif)</span>
+                    <input
+                      type="date"
+                      className="input-field"
+                      min={formData.tanggal_mulai || undefined}
+                      value={formData.tanggal_selesai}
+                      onChange={e => setFormData({ ...formData, tanggal_selesai: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <p style={{ fontSize: '0.6875rem', color: 'var(--text-tertiary)', marginTop: '0.3rem' }}>
+                  Kosongkan untuk tanpa batas. Setelah tanggal berakhir, promo otomatis hilang dari kasir.
+                </p>
               </div>
 
               {/* Keterangan */}

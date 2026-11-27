@@ -361,6 +361,16 @@ select.input-field {
   background-color: var(--surface-panel);
 }
 
+/* Pembungkus tabel lama (dipakai di halaman Pemasukan) */
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--surface-panel);
+}
+
 .table-responsive::-webkit-scrollbar {
   height: 6px;
 }
@@ -399,8 +409,13 @@ select.input-field {
 }
 
 @media (max-width: 440px) {
-  .responsive-stats-grid {
-    grid-template-columns: 1fr;
+  /* Tetap 2 kolom di HP; kartu ganjil terakhir melebar penuh */
+  .responsive-stats-grid > *:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+  .responsive-stats-grid > * {
+    padding: 0.85rem !important;
+    min-width: 0;
   }
 }
 
@@ -416,9 +431,13 @@ select.input-field {
   .responsive-filter-bar {
     gap: 0.5rem;
   }
+  /* Filter tampil 2 kolom; kolom pencarian (pertama) tetap lebar penuh */
   .responsive-filter-bar > div {
-    min-width: 100% !important;
-    flex: 1 1 100% !important;
+    min-width: 0 !important;
+    flex: 1 1 calc(50% - 0.25rem) !important;
+  }
+  .responsive-filter-bar > div:first-child {
+    flex-basis: 100% !important;
   }
   .responsive-filter-bar > button {
     width: 100%;
@@ -477,6 +496,79 @@ select.input-field {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* ========================================================================= */
+/* Mobile Responsive Overrides (Phone-first)                                */
+/* Menimpa grid & spacing inline pada layar kecil agar tidak sempit/terpotong */
+/* ========================================================================= */
+@media (max-width: 640px) {
+  html,
+  body {
+    font-size: 15px;
+  }
+
+  /* Grid inline 2 kolom (form modal, filter, dll.) menjadi 1 kolom */
+  div[style*="grid-template-columns: 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Kartu statistik ringkas: 2 kolom agar tidak memakan layar */
+  div[style*="minmax(180px"],
+  div[style*="minmax(130px"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.6rem !important;
+  }
+
+  /* Kartu/grid auto-fit dengan minimum lebar besar dipersempit */
+  div[style*="minmax(340px"],
+  div[style*="minmax(300px"],
+  div[style*="minmax(280px"],
+  div[style*="minmax(220px"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Modal: tampil sebagai bottom sheet agar mudah dijangkau jempol */
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal-content {
+    max-width: 100%;
+    width: 100% !important;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    max-height: 92vh;
+  }
+
+  .card,
+  .panel {
+    padding: 1rem;
+  }
+
+  /* Area target sentuh minimal 40px untuk tombol */
+  .btn-primary,
+  .btn-chocolate,
+  .btn-secondary,
+  .btn-danger {
+    min-height: 40px;
+    padding: 0.6rem 0.9rem;
+  }
+
+  /* Header halaman admin: judul & aksi boleh turun ke baris berikutnya */
+  .admin-page-container > div[style*="justify-content: space-between"] {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  /* Tabel tetap bisa di-scroll horizontal tanpa melebarkan halaman */
+  .table-responsive,
+  .table-wrapper,
+  div:has(> table) {
+    max-width: 100%;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* ========================================================================= */

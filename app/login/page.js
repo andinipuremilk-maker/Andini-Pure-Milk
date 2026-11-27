@@ -13,6 +13,8 @@ import {
   IconX 
 } from '../../components/ui/icons';
 
+const IS_DEV = process.env.NODE_ENV !== 'production';
+
 const DEFAULT_BOOTHS = [
   'Booth 1 - Gerai Utama (Pusat)',
   'Booth 2 - Alun-Alun Kota',
@@ -32,8 +34,9 @@ function LoginForm() {
   const [role, setRole] = useState(roleParam === 'admin' ? 'admin' : 'kasir');
   const isAdmin = role === 'admin';
 
-  const [username, setUsername] = useState(role === 'admin' ? 'admin' : 'kasir');
-  const [password, setPassword] = useState(role === 'admin' ? 'admin' : 'kasir');
+  // Isi otomatis akun default hanya saat pengembangan (tidak di produksi)
+  const [username, setUsername] = useState(IS_DEV ? (role === 'admin' ? 'admin' : 'kasir') : '');
+  const [password, setPassword] = useState(IS_DEV ? (role === 'admin' ? 'admin' : 'kasir') : '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -75,8 +78,8 @@ function LoginForm() {
   // Switch tab kasir / admin
   const handleTabChange = (targetRole) => {
     setRole(targetRole);
-    setUsername(targetRole);
-    setPassword(targetRole);
+    setUsername(IS_DEV ? targetRole : '');
+    setPassword(IS_DEV ? targetRole : '');
     setError('');
     router.replace(`/login?role=${targetRole}`);
   };
@@ -118,8 +121,8 @@ function LoginForm() {
     e.preventDefault();
     setError('');
 
-    // Validasi booth: Wajib memilih booth sebelum masuk!
-    if (!selectedBooth || selectedBooth.trim() === '') {
+    // Validasi booth: wajib untuk kasir. Admin memilih booth di Terminal Kasir saat berjualan.
+    if (role === 'kasir' && (!selectedBooth || selectedBooth.trim() === '')) {
       setError('Silakan pilih lokasi booth penjualan sebelum melanjutkan.');
       return;
     }
@@ -129,8 +132,8 @@ function LoginForm() {
       return;
     }
 
-    let effectiveBooth = selectedBooth;
-    if (selectedBooth === 'Lainnya (Kustom)') {
+    let effectiveBooth = role === 'kasir' ? selectedBooth : '';
+    if (role === 'kasir' && selectedBooth === 'Lainnya (Kustom)') {
       if (!customBooth.trim()) {
         setError('Silakan masukkan nama booth penjualan kustom Anda.');
         return;
@@ -346,7 +349,8 @@ function LoginForm() {
 
           {/* Form Login */}
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {/* Booth Penjualan (Selalu Muncul) */}
+            {/* Booth Penjualan (khusus kasir) */}
+            {role === 'kasir' && (
             <div style={{
               padding: '0.85rem',
               backgroundColor: 'var(--surface-subtle)',
@@ -484,6 +488,7 @@ function LoginForm() {
                 </div>
               )}
             </div>
+            )}
 
             {/* Username Input */}
             <div>
@@ -542,7 +547,8 @@ function LoginForm() {
               <span>{loading ? 'Memverifikasi...' : `Masuk sebagai ${role === 'admin' ? 'Administrator' : 'Kasir'}`}</span>
             </button>
 
-            {/* Helper Note */}
+            {/* Helper Note (hanya tampil saat pengembangan) */}
+            {IS_DEV && (
             <div style={{
               padding: '0.6rem 0.75rem',
               borderRadius: 'var(--radius-md)',
@@ -554,6 +560,7 @@ function LoginForm() {
             }}>
               Akun Default: <strong style={{ color: 'var(--text-primary)' }}>{role}</strong> &bull; Password: <strong style={{ color: 'var(--text-primary)' }}>{role}</strong>
             </div>
+            )}
           </form>
         </div>
       </main>

@@ -2,6 +2,39 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin, isSupabaseConfigured, isSupabaseAvailable } from '../../../lib/supabase';
 import { db } from '../../../lib/db';
 
+// Semua batas hari dihitung dalam WIB (UTC+7), bukan zona waktu server (Vercel = UTC).
+const WIB_MS = 7 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Awal hari (00:00 WIB) untuk tanggal yang memuat waktu `ms`
+function awalHariWib(ms = Date.now()) {
+  return Math.floor((ms + WIB_MS) / DAY_MS) * DAY_MS - WIB_MS;
+}
+
+// 'YYYY-MM-DD' -> rentang 00:00:00 s/d 23:59:59.999 WIB (tanggal akhir ikut dihitung).
+// Nilai ISO lengkap tetap diterima apa adanya untuk kompatibilitas.
+function parseRentang(startStr, endStr) {
+  if (!startStr || !endStr) return null;
+  const isTgl = s => /^\d{4}-\d{2}-\d{2}$/.test(s);
+  // Tanggal terbalik (akhir < awal): tukar tanggalnya dulu, baru hitung jam awal/akhir hari
+  if (isTgl(startStr) && isTgl(endStr) && startStr > endStr) [startStr, endStr] = [endStr, startStr];
+  const start = isTgl(startStr) ? new Date(`${startStr}T00:00:00+07:00`) : new Date(startStr);
+  const end = isTgl(endStr) ? new Date(`${endStr}T23:59:59.999+07:00`) : new Date(endStr);
+  if (isNaN(start) || isNaN(end)) return null;
+  return start <= end ? { start, end } : { start: end, end: start };
+}
+
+// Supabase membatasi 1000 baris per request: ambil semua halaman
+async function ambilSemua(buatQuery) {
+  const PAGE = 1000;
+  const rows = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await buatQuery().range(from, from + PAGE - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < PAGE) return rows;
+  }
+
 function computeSegmentedSales(transactions, detailItems) {
   const trxSellerMap = {};
   (transactions || []).forEach(t => {
@@ -76,8 +109,7 @@ function computeSegmentedSales(transactions, detailItems) {
     sekolah: Object.values(sekolahMap).sort((a, b) => b.qty - a.qty),
     olehOleh: Object.values(olehOlehMap).sort((a, b) => b.qty - a.qty),
     booth: Object.values(boothMap).sort((a, b) => b.qty - a.qty)
-  };
-}
+  };}
 
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
@@ -89,34 +121,22 @@ export async function GET(req) {
   if (await isSupabaseAvailable() && supabaseAdmin) {
     try {
       if (type === 'dashboard') {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const todayIso = today.toISOString();
+        const todayMs = awalHariWib();
+        const todayIso = new Date(todayMs).toISOString();
 
+        const today = new Date(todayMs);
         // Awal Bulan Ini
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         startOfMonth.setHours(0, 0, 0, 0);
         const startOfMonthIso = startOfMonth.toISOString();
 
-        // Data Mingguan (Senin - Minggu)
-        const now = new Date();
-        const dayOfWeek = now.getDay();
-        const diffToMonday = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-        const monday = new Date(now.setDate(diffToMonday));
-        monday.setHours(0, 0, 0, 0);
-
-        const sundayEnd = new Date(monday);
-        sundayEnd.setDate(monday.getDate() + 7);
+        // Data Mingguan (Senin - Minggu, WIB)
+        const dayOfWeek = new Date(todayMs + WIB_MS).getUTCDay(); // 0 = Minggu
+        const monday = new Date(todayMs - ((dayOfWeek + 6) % 7) * DAY_MS);
+        const sundayEnd = new Date(monday.getTime() + 7 * DAY_MS);
 
         // Run queries in parallel to eliminate sequential network latency
-        const [
-          { data: trxToday },
-          { data: trxMonth },
-          { data: expToday },
-          { data: weekTrx },
-          { data: weekExp }
-        ] = await Promise.all([
-          supabaseAdmin
+        const hasil = await Promise.all([          supabaseAdmin
             .from('transaksi')
             .select('id, total, status, tanggal, seller')
             .gte('tanggal', todayIso)
@@ -142,6 +162,9 @@ export async function GET(req) {
             .gte('tanggal', monday.toISOString())
             .lt('tanggal', sundayEnd.toISOString())
         ]);
+        const gagal = hasil.find(h => h.error);
+        if (gagal) throw gagal.error;
+        const [{ data: trxToday }, { data: trxMonth }, { data: expToday }, { data: weekTrx }, { data: weekExp }] = hasil;
 
         const todayRevenue = (trxToday || []).reduce((sum, t) => sum + Number(t.total || 0), 0);
         const todayExpense = (expToday || []).reduce((sum, e) => sum + Number(e.nominal || 0), 0);
@@ -196,10 +219,8 @@ export async function GET(req) {
 
         const weeklyData = [];
         for (let i = 0; i < 7; i++) {
-          const dStart = new Date(monday);
-          dStart.setDate(monday.getDate() + i);
-          const dEnd = new Date(dStart);
-          dEnd.setDate(dStart.getDate() + 1);
+          const dStart = new Date(monday.getTime() + i * DAY_MS);
+          const dEnd = new Date(dStart.getTime() + DAY_MS);
 
           const dayTrx = (weekTrx || []).filter(t => {
             const dt = new Date(t.tanggal);
@@ -215,7 +236,7 @@ export async function GET(req) {
           const exp = dayExp.reduce((sum, e) => sum + Number(e.nominal || 0), 0);
 
           weeklyData.push({
-            date: dStart.toLocaleDateString('id-ID', { weekday: 'short' }),
+            date: dStart.toLocaleDateString('id-ID', { weekday: 'short', timeZone: 'Asia/Jakarta' }),
             revenue: rev,
             expense: exp,
             net: rev - exp
@@ -237,10 +258,11 @@ export async function GET(req) {
       }
 
       if (type === 'laporan') {
-        const startStr = searchParams.get('start');
-        const endStr = searchParams.get('end');
+        const rentang = parseRentang(searchParams.get('start'), searchParams.get('end'));
 
-        let queryTrx = supabaseAdmin
+        // Hanya transaksi yang sudah dibayar; pesanan 'pending' (ditahan) belum menjadi omzet
+        const queryTrx = () => {
+          let q = supabaseAdmin
           .from('transaksi')
           .select(`
             id,
@@ -260,36 +282,37 @@ export async function GET(req) {
             items:detail_transaksi(
               id,
               produk_id,
-              kategori_id,
               nama_produk,
               qty,
               harga_satuan,
+              harga_modal,
               subtotal
             )
           `)
-          .order('tanggal', { ascending: false });
+          .eq('status', 'selesai')
+          .order('tanggal', { ascending: false })
+          .order('id');
+          if (rentang) q = q.gte('tanggal', rentang.start.toISOString()).lte('tanggal', rentang.end.toISOString());
+          return q;
+        };
 
-        let queryExp = supabaseAdmin
+        // Kolom tabel pengeluaran: deskripsi (bukan keterangan)
+        const queryExp = () => {
+          let q = supabaseAdmin
           .from('pengeluaran')
-          .select('id, no_transaksi, tanggal, kategori, nominal, keterangan')
-          .order('tanggal', { ascending: false });
+          .select('id, no_transaksi, tanggal, kategori, deskripsi, nominal, metode_bayar, pj')
+          .order('tanggal', { ascending: false })
+          .order('id');
+          if (rentang) q = q.gte('tanggal', rentang.start.toISOString()).lte('tanggal', rentang.end.toISOString());
+          return q;
+        };
 
-        if (startStr && endStr) {
-          queryTrx = queryTrx.gte('tanggal', startStr).lte('tanggal', endStr);
-          queryExp = queryExp.gte('tanggal', startStr).lte('tanggal', endStr);
-        }
-
-        const [{ data: transactions }, { data: expenses }, { data: categories }, { data: products }] = await Promise.all([
-          queryTrx,
-          queryExp,
-          supabaseAdmin.from('kategori_produk').select('*'),
-          supabaseAdmin.from('produk').select('id, nama, harga_jual, harga_modal, kategori_id')
+        const [trxs, exps, kats, prods] = await Promise.all([
+          ambilSemua(queryTrx),
+          ambilSemua(queryExp),
+          ambilSemua(() => supabaseAdmin.from('kategori_produk').select('*').order('id')),
+          ambilSemua(() => supabaseAdmin.from('produk').select('id, nama, harga_jual, harga_modal, kategori_id').order('id'))
         ]);
-
-        const trxs = transactions || [];
-        const exps = expenses || [];
-        const kats = categories || [];
-        const prods = products || [];
 
         const prodMap = {};
         prods.forEach(p => {
@@ -316,9 +339,10 @@ export async function GET(req) {
             const qty = Number(it.qty || 1);
             const hargaSatuan = Number(it.harga_satuan || (p ? p.harga_jual : 0));
             const subtotal = Number(it.subtotal || (qty * hargaSatuan));
-            const modalSatuan = (p && p.harga_modal !== undefined && p.harga_modal !== null && Number(p.harga_modal) > 0)
-              ? Number(p.harga_modal)
-              : Math.round(hargaSatuan * 0.6);
+            // Modal historis per item (tersimpan saat transaksi/impor) lebih akurat dari harga modal produk saat ini
+            const modalSatuan = (it.harga_modal !== undefined && it.harga_modal !== null)
+              ? Number(it.harga_modal)
+              : (p && Number(p.harga_modal) > 0) ? Number(p.harga_modal) : Math.round(hargaSatuan * 0.6);
             const itemHpp = qty * modalSatuan;
             totalHpp += itemHpp;
 
@@ -362,16 +386,15 @@ export async function GET(req) {
         const totalCount = trxs.length;
         const averageTicket = totalCount > 0 ? Math.round(totalRevenue / totalCount) : 0;
 
-        // Breakdown Kategori Produk
+        // Breakdown Kategori Produk (produk tanpa kategori masuk "Lainnya", bukan ke kategori pertama)
         const catMap = {};
         kats.forEach(k => { catMap[k.id] = { kategori: k.nama, revenue: 0 }; });
+        catMap.__lainnya = { kategori: 'Lainnya', revenue: 0 };
 
         trxs.forEach(t => {
           (t.items || []).forEach(it => {
-            const catId = it.kategori_id || kats[0]?.id;
-            if (catId && catMap[catId]) {
-              catMap[catId].revenue += Number(it.subtotal || 0);
-            }
+            const catId = prodMap[it.produk_id]?.kategori_id;
+            (catMap[catId] || catMap.__lainnya).revenue += Number(it.subtotal || 0);
           });
         });
 
@@ -418,6 +441,8 @@ export async function GET(req) {
       }
     } catch (err) {
       console.error('Supabase GET laporan error:', err);
+      // Jangan diam-diam menampilkan angka nol: beri tahu halaman bahwa data gagal dimuat
+      return NextResponse.json({ error: 'Gagal memuat laporan dari database. Coba muat ulang halaman.' }, { status: 503 });
     }
   }
 
@@ -427,8 +452,7 @@ export async function GET(req) {
   if (!db.pengeluaran) db.pengeluaran = [];
 
   if (type === 'dashboard') {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Date(awalHariWib());
 
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     startOfMonth.setHours(0, 0, 0, 0);
@@ -499,17 +523,12 @@ export async function GET(req) {
     });
 
     const weeklyData = [];
-    const now = new Date();
-    const dayOfWeek = now.getDay();
-    const diffToMonday = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-    const monday = new Date(now.setDate(diffToMonday));
-    monday.setHours(0,0,0,0);
+    const dayOfWeek = new Date(today.getTime() + WIB_MS).getUTCDay();
+    const monday = new Date(today.getTime() - ((dayOfWeek + 6) % 7) * DAY_MS);
 
     for(let i = 0; i < 7; i++) {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      const nextD = new Date(d);
-      nextD.setDate(d.getDate() + 1);
+      const d = new Date(monday.getTime() + i * DAY_MS);
+      const nextD = new Date(d.getTime() + DAY_MS);
 
       const dayTransactions = db.transaksi.filter(t => {
         const tDate = new Date(t.tanggal);
@@ -526,7 +545,7 @@ export async function GET(req) {
       const net = revenue - expense;
 
       weeklyData.push({
-        date: d.toLocaleDateString('id-ID', { weekday: 'short' }),
+        date: d.toLocaleDateString('id-ID', { weekday: 'short', timeZone: 'Asia/Jakarta' }),
         revenue,
         expense,
         net
@@ -559,15 +578,13 @@ export async function GET(req) {
   }
 
   if (type === 'laporan') {
-    const startStr = searchParams.get('start');
-    const endStr = searchParams.get('end');
+    const rentang = parseRentang(searchParams.get('start'), searchParams.get('end'));
 
-    let transactions = [...db.transaksi];
+    let transactions = db.transaksi.filter(t => t.status === 'selesai');
     let expenses = [...db.pengeluaran];
 
-    if (startStr && endStr) {
-      const s = new Date(startStr);
-      const e = new Date(endStr);
+    if (rentang) {
+      const { start: s, end: e } = rentang;
       transactions = transactions.filter(t => {
         const d = new Date(t.tanggal);
         return d >= s && d <= e;
@@ -612,9 +629,9 @@ export async function GET(req) {
         const qty = Number(it.qty || 1);
         const hargaSatuan = Number(it.harga_satuan || (p ? p.harga_jual : 0));
         const subtotal = Number(it.subtotal || (qty * hargaSatuan));
-        const modalSatuan = (p && p.harga_modal !== undefined && p.harga_modal !== null && Number(p.harga_modal) > 0)
-          ? Number(p.harga_modal)
-          : Math.round(hargaSatuan * 0.6);
+        const modalSatuan = (it.harga_modal !== undefined && it.harga_modal !== null)
+          ? Number(it.harga_modal)
+          : (p && Number(p.harga_modal) > 0) ? Number(p.harga_modal) : Math.round(hargaSatuan * 0.6);
         const itemHpp = qty * modalSatuan;
         totalHpp += itemHpp;
 

@@ -88,13 +88,34 @@ export async function GET(req) {
   return NextResponse.json(list);
 }
 
+// Nomor berurutan per hari: EXP-YYYYMMDD-NNN (sama dengan format data yang sudah ada)
+function awalanNomor(tanggal) {
+  const tgl = new Date(tanggal || Date.now()).toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' }).replace(/-/g, '');
+  return `EXP-${tgl}-`;
+}
+function nomorBerikut(awalan, daftarNomor) {
+  let maks = 100;
+  for (const n of daftarNomor) {
+    const seq = parseInt(String(n || '').slice(awalan.length), 10);
+    if (String(n || '').startsWith(awalan) && Number.isFinite(seq) && seq > maks) maks = seq;
+  }
+  return awalan + String(maks + 1).padStart(3, '0');
+}
+
 export async function POST(req) {
   const data = await req.json();
 
   if (await isSupabaseAvailable() && supabaseAdmin) {
     try {
+      const awalan = awalanNomor(data.tanggal);
+      const { data: terakhir } = await supabaseAdmin
+        .from('pengeluaran')
+        .select('no_transaksi')
+        .like('no_transaksi', `${awalan}%`)
+        .order('no_transaksi', { ascending: false })
+        .limit(1);
       const payload = {
-        no_transaksi: 'EXP-' + Date.now().toString().slice(-6),
+        no_transaksi: nomorBerikut(awalan, (terakhir || []).map(r => r.no_transaksi)),
         tanggal: data.tanggal ? new Date(data.tanggal).toISOString() : new Date().toISOString(),
         kategori: data.kategori || 'Operasional',
         deskripsi: data.deskripsi || '',
@@ -122,7 +143,7 @@ export async function POST(req) {
   if (!db.pengeluaran) db.pengeluaran = [];
   const newExpense = {
     id: `exp_${Date.now()}`,
-    no_transaksi: 'EXP-' + Date.now().toString().slice(-6),
+    no_transaksi: nomorBerikut(awalanNomor(data.tanggal), db.pengeluaran.map(e => e.no_transaksi)),
     tanggal: data.tanggal ? new Date(data.tanggal).toISOString() : new Date().toISOString(),
     kategori: data.kategori || 'Operasional',
     deskripsi: data.deskripsi || '',
