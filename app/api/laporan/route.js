@@ -35,6 +35,8 @@ async function ambilSemua(buatQuery) {
     if (!data || data.length < PAGE) return rows;
   }
 
+}
+
 function computeSegmentedSales(transactions, detailItems) {
   const trxSellerMap = {};
   (transactions || []).forEach(t => {
